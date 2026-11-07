@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Accepted (decision delegated to the architect; acknowledged by the instructor on 2026-11-01 |
+| **Status** | Accepted (decision delegated to the architect; acknowledged by the instructor on 2026-11-01) |
 | **Date** | 2026-11-01 |
 | **Deciders** | Claude (architect); Saidafzal (instructor) acknowledges |
 
