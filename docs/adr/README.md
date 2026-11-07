@@ -9,7 +9,7 @@ An ADR captures one significant decision: the context, the options we weighed, w
 | ADR | Decision | Status |
 |---|---|---|
 | [0001](0001-monorepo-layout.md) | Monorepo layout and sharing rules | Accepted |
-| 0002 | Service communication: REST vs messaging | Not started |
+| [0002](0002-service-communication.md) | Service communication: REST for requests, events for facts | Proposed |
 | [0003](0003-message-broker.md) | Message broker (RabbitMQ) and when it is introduced | Proposed |
 | 0004 | Authentication design | Not started |
 | 0005 | Data: PostgreSQL per service, migrations tool | Not started |
