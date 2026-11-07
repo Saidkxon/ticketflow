@@ -19,7 +19,7 @@ An ADR captures one significant decision: the context, the options we weighed, w
 | 0009 | API conventions | Not started |
 | [0010](0010-frontend-stack.md) | Frontend stack, design system, seat-map rendering | Accepted |
 | 0011 | Real-time availability updates | Not started |
-| 0012 | Seat-state ownership, holds and expiry | Not started |
+| [0012](0012-seat-state-holds-expiry.md) | Seat-state ownership, holds and expiry | Propqqqosed |
 
 ## Suggested order for the remaining ADRs
 
