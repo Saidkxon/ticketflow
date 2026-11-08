@@ -15,7 +15,7 @@ An ADR captures one significant decision: the context, the options we weighed, w
 | [0005](0005-data-and-migrations.md) | Data storage, database topology and migrations | Proposed |
 | [0006](0006-booking-payment-saga.md) | Booking and payment flow: a saga coordinated by Booking | Proposed |
 | [0007](0007-java-spring-build-tool.md) | Java, Spring Boot and build tool versions | Accepted |
-| 0008 | Observability stack | Not started |
+| [0008](0008-observability.md) | Observability: logs, metrics, traces and health | Proposed |
 | [0009](0009-api-and-event-conventions.md) | API and event conventions | Proposed |
 | [0010](0010-frontend-stack.md) | Frontend stack, design system, seat-map rendering | Accepted |
 | [0011](0011-realtime-seat-updates.md) | Keeping the browser up to date (seat map, hold countdown, payment status) | Proposed |
