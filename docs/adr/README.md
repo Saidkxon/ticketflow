@@ -20,6 +20,7 @@ An ADR captures one significant decision: the context, the options we weighed, w
 | [0010](0010-frontend-stack.md) | Frontend stack, design system, seat-map rendering | Accepted |
 | [0011](0011-realtime-seat-updates.md) | Keeping the browser up to date (seat map, hold countdown, payment status) | Proposed |
 | [0012](0012-seat-state-holds-expiry.md) | Seat-state ownership, holds and expiry | Proposed |
+| [0013](0013-api-gateway.md) | API gateway: technology, responsibilities and routing | Proposed |
 
 ## Suggested order for the remaining ADRs
 
