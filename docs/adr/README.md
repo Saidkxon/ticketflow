@@ -12,7 +12,7 @@ An ADR captures one significant decision: the context, the options we weighed, w
 | [0002](0002-service-communication.md) | Service communication: REST for requests, events for facts | Proposed |
 | [0003](0003-message-broker.md) | Message broker (RabbitMQ) and when it is introduced | Proposed |
 | [0004](0004-authentication.md) | Authentication and authorization | Proposed |
-| 0005 | Data: PostgreSQL per service, migrations tool | Not started |
+| [0005](0005-data-and-migrations.md) | Data storage, database topology and migrations | Proposed |
 | [0006](0006-booking-payment-saga.md) | Booking and payment flow: a saga coordinated by Booking | Proposed |
 | [0007](0007-java-spring-build-tool.md) | Java, Spring Boot and build tool versions | Accepted |
 | 0008 | Observability stack | Not started |
