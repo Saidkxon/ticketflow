@@ -43,7 +43,7 @@ Facts checked on 2026-11-01:
 - **Java 25 (LTS)**, using a free OpenJDK distribution (Eclipse Temurin) locally and in container images.
 - **Spring Boot 4.1.x**, latest patch at scaffolding time (4.1.1 as of today).
 - **Maven**, always via the **Maven Wrapper** (`mvnw`) so everyone and CI use the same version; minimum Maven 3.9.
-- A root parent POM centralizes dependency and plugin versions (see ADR-0001, rule R4).
+- A root parent POM centralizes dependency and plugin versions (see ADR-0001, rule R4). This includes the versions of Flyway, Testcontainers and the Spring Cloud release train, which are pinned here when the first service is scaffolded (ADR-0005, ADR-0013).
 - Versions are pinned in the build, never "latest".
 
 ## Consequences

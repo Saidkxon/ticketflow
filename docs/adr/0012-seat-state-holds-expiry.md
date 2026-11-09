@@ -86,19 +86,19 @@ Illustrative shape of the core statement (not a final schema):
 ```sql
 -- Runs after the ordered row locks are taken, in the same transaction.
 UPDATE event_seat
-   SET state = 'HELD',
-       booking_id = :bookingId,
-       held_until = now() + interval '10 minutes'
- WHERE event_id = :eventId
-   AND seat_id  = ANY(:seatIds)
-   AND (state = 'AVAILABLE' OR (state = 'HELD' AND held_until <= now()));
+SET state = 'HELD',
+    booking_id = :bookingId,
+    held_until = now() + interval '10 minutes'
+WHERE event_id = :eventId
+  AND seat_id  = ANY(:seatIds)
+  AND (state = 'AVAILABLE' OR (state = 'HELD' AND held_until <= now()));
 -- If the number of updated rows differs from the number of requested seats:
 -- roll back and return a conflict.
 ```
 
 **Expiry is data-driven, in two layers:**
 - **Lazy expiry (correctness):** a `HELD` seat whose deadline has passed is treated as available **by every query and every hold attempt**. Correctness never depends on a background job running on time.
-- **Sweeper (cleanliness):** a scheduled job periodically marks expired holds as released and emits "hold expired" events for notifications. It processes small batches with `FOR UPDATE SKIP LOCKED`, so several instances can run safely, and it is idempotent.
+- **Sweeper (cleanliness):** a scheduled job periodically marks expired holds as released and emits a `BookingExpired` event (ADR-0006) for each booking whose hold ran out, so Notification can tell the customer. It processes small batches with `FOR UPDATE SKIP LOCKED`, so several instances can run safely, and it is idempotent.
 
 **Other rules:**
 - **One clock:** all deadlines and comparisons use the **database clock**, never application-server clocks, to avoid skew between instances.
