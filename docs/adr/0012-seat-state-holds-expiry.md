@@ -86,12 +86,12 @@ Illustrative shape of the core statement (not a final schema):
 ```sql
 -- Runs after the ordered row locks are taken, in the same transaction.
 UPDATE event_seat
-SET state = 'HELD',
-    booking_id = :bookingId,
-    held_until = now() + interval '10 minutes'
-WHERE event_id = :eventId
-  AND seat_id  = ANY(:seatIds)
-  AND (state = 'AVAILABLE' OR (state = 'HELD' AND held_until <= now()));
+   SET state = 'HELD',
+       booking_id = :bookingId,
+       held_until = now() + interval '10 minutes'
+ WHERE event_id = :eventId
+   AND seat_id  = ANY(:seatIds)
+   AND (state = 'AVAILABLE' OR (state = 'HELD' AND held_until <= now()));
 -- If the number of updated rows differs from the number of requested seats:
 -- roll back and return a conflict.
 ```
