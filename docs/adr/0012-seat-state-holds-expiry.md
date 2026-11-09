@@ -98,7 +98,7 @@ UPDATE event_seat
 
 **Expiry is data-driven, in two layers:**
 - **Lazy expiry (correctness):** a `HELD` seat whose deadline has passed is treated as available **by every query and every hold attempt**. Correctness never depends on a background job running on time.
-- **Sweeper (cleanliness):** a scheduled job periodically marks expired holds as released and emits "hold expired" events for notifications. It processes small batches with `FOR UPDATE SKIP LOCKED`, so several instances can run safely, and it is idempotent.
+- **Sweeper (cleanliness):** a scheduled job periodically marks expired holds as released and emits a `BookingExpired` event (ADR-0006) for each booking whose hold ran out, so Notification can tell the customer. It processes small batches with `FOR UPDATE SKIP LOCKED`, so several instances can run safely, and it is idempotent.
 
 **Other rules:**
 - **One clock:** all deadlines and comparisons use the **database clock**, never application-server clocks, to avoid skew between instances.

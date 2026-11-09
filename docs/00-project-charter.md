@@ -15,6 +15,7 @@
 | 0.1 | Initial draft |
 | 0.2 | Web UI moved **into scope**; seats modeled as **specific seats**; name confirmed; requirements, risks, ADR backlog and phase plan updated |
 | 1.0 | Approved by instructor; frontend stack delegated to the architect (ADR-010); Phase 0 closed |
+| 1.1 | Section 10 now points to the ADR index (the backlog grew from 12 to 13 ADRs: API gateway added as ADR-0013); phase 1 row updated; no scope change |
 
 ---
 
@@ -145,29 +146,16 @@ These are hypotheses for Phase 1 and **not** final boundaries.
 | Solo project loses momentum | Unfinished | Small weekly milestones; each milestone is a mergeable PR |
 | Deployment decision postponed too long | CI/CD rework | Hard gate before the skeleton is declared done |
 
-## 10. ADR backlog (decisions to make in Phase 1)
+## 10. Architecture decisions
 
-| ADR | Decision |
-|---|---|
-| 001 | Repository layout: monorepo vs one repo per service |
-| 002 | Service communication: REST vs messaging, and which flows are sync vs async |
-| 003 | Message broker (Kafka vs RabbitMQ) or none in MVP |
-| 004 | Authentication design: where tokens are issued and validated |
-| 005 | Data: PostgreSQL per service, migrations tool |
-| 006 | Distributed transaction style: choreography vs orchestration saga |
-| 007 | Build tool, Java version, Spring Boot version |
-| 008 | Observability stack (logs, metrics, tracing) |
-| 009 | API conventions (versioning, error format, pagination) |
-| 010 | Frontend stack, design system and how the seat map is rendered |
-| 011 | Real-time availability updates: polling vs SSE vs WebSocket |
-| 012 | Seat-state ownership and how seat holds are stored and expired (database locking vs cache) |
+The decision backlog that this section used to list is now the ADR index: [docs/adr/README.md](adr/README.md). It lists every decision, its status and its file. Thirteen ADRs (0001-0013) cover Phase 1: repository layout, service communication, message broker, authentication, data and migrations, booking and payment saga, build tool and versions, observability, API and event conventions, frontend stack, real-time updates, seat state and holds, and the API gateway (added after v1.0 because other ADRs depended on it).
 
 ## 11. Phase plan (rough; ~10-15 h/week)
 
 | Phase | Outcome | Rough duration |
 |---|---|---|
 | 0 | Charter signed off | this week |
-| 1 | C4 diagrams, service boundaries, ADRs 001-012, wireframes and design direction | 2 weeks |
+| 1 | C4 diagrams, service boundaries, ADRs 0001-0013, wireframes and design direction | 2 weeks |
 | 2 | Repo, branching rules, PR template, CI, code standards | ~1 week |
 | 3 | Walking skeleton: gateway, one service, DB, minimal web shell, CI, container; deployment decision | 2-3 weeks |
 | 4a | Identity + Catalog, with login, event browsing and organizer screens | ~4-5 weeks |

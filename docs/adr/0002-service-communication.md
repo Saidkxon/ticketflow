@@ -50,7 +50,7 @@ Even reads and user-facing requests go through the broker.
 
 1. **External API (browser to gateway to services): REST with JSON over HTTPS.** Each service publishes its OpenAPI specification in `contracts/` (ADR-0001, rule R2).
 2. **Queries are synchronous REST. A service never calls another service in order to answer a read request** (for example, the seat map is built in the browser from Catalog's layout and Booking's unavailable-seat list, as in ADR-0012).
-3. **Facts that have already happened are events**, named in the past tense: `LayoutPublished`, `HoldExpired`, `PaymentSucceeded`, `PaymentFailed`, `BookingConfirmed`. They use the outbox and RabbitMQ from ADR-0003.
+3. **Facts that have already happened are events**, named in the past tense: `LayoutPublished`, `PaymentSucceeded`, `PaymentFailed`, `BookingConfirmed`, `BookingExpired`. The full booking-related list is in ADR-0006. They use the outbox and RabbitMQ from ADR-0003.
 4. **Commands that must be acted on are synchronous REST requests that return quickly.** They are **idempotent** (they carry an idempotency key) and return a status or an identifier, never a long wait.
 5. **The complete list of allowed synchronous service-to-service calls in the MVP:**
    - Booking to Catalog: fetch the immutable layout snapshot (triggered by `LayoutPublished`, ADR-0012)

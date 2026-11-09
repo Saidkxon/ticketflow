@@ -17,7 +17,7 @@ Facts from accepted designs that shape this decision:
 - **ADR-0006:** starting a payment returns quickly (HTTP 202), and the result arrives later; the booking moves `PAYMENT_PENDING` to `CONFIRMED`, `HELD` or `EXPIRED`.
 - **ADR-0004:** browsing events is public; booking data is private; the access token lives in browser memory and the refresh token in an `HttpOnly` cookie.
 - **ADR-0010:** the web app uses TanStack Query; the seat map is an SVG component with about 2,000 seats (NFR-10).
-- **Constraints:** one developer, a laptop with limited free memory, about 50 concurrent users as the load target (NFR-4), the gateway technology still undecided (a new ADR is planned), and no more than one Booking instance in the MVP (but ADR-0012 is designed so several can run).
+- **Constraints:** one developer, a laptop with limited free memory, about 50 concurrent users as the load target (NFR-4), the API gateway chosen in ADR-0013 (Spring Cloud Gateway, Server Web MVC), and no more than one Booking instance in the MVP (but ADR-0012 is designed so several can run).
 
 This ADR decides how three things reach the browser: **(1)** seat availability, **(2)** the hold countdown, **(3)** the booking status after payment.
 
@@ -25,7 +25,7 @@ This ADR decides how three things reach the browser: **(1)** seat availability, 
 
 1. Correctness never depends on the browser being up to date (NFR-1)
 2. Simple to build, test and operate for one developer
-3. Works unchanged with several Booking instances and with the undecided gateway
+3. Works unchanged with several Booking instances and with any gateway or proxy
 4. Honest about staleness: the customer sees fresh-enough data and clear feedback when it was too stale
 5. Leave room to move to push later without rewriting components
 
@@ -58,6 +58,7 @@ This ADR decides how three things reach the browser: **(1)** seat availability, 
 - The endpoint supports **conditional requests**: the response carries an `ETag` derived from its content, and an unchanged list returns **304** with no body. (This is a conditional read, an addition to ADR-0009's use of `ETag` for updates.)
 - Responses use compression. A full list for a 2,000-seat venue is at most about 78 KB uncompressed (2,000 UUIDs at about 39 bytes each), and typically far smaller, because most seats are free early and unchanged lists return 304. If measurements show size matters, a compact per-event seat number can be added to the layout snapshot as a backward-compatible change.
 - The server keeps its result in a short in-process cache (one to two seconds, as ADR-0012 allows), so 50 pollers cost about one database query per refresh, not one each.
+- The gateway allows **60 availability requests per minute per address** (ADR-0013, G3); the 3-second poll with jitter uses at most about 25. Many users behind one address (a campus network, for example) can hit this limit; if measurements show it, the limit is raised, not the poll slowed.
 - Requests follow ADR-0009: on **429** the client waits for the `Retry-After` period, and on **503** it backs off before trying again.
 - The availability list is **public**: it contains seat IDs only, no personal data (ADR-0004), so it needs no token and no special browser API.
 - **The map is a hint, not a promise.** A hold that fails because the map was stale returns **409 `SEAT_UNAVAILABLE` with `unavailableSeatIds`** (ADR-0012, ADR-0009). The web app immediately **deselects those seats, refreshes the map and tells the customer**.
@@ -129,6 +130,7 @@ If we move to push, **Option D** (a small "something changed" hint that triggers
 - **ADR-0009:** error codes, 429 and `Retry-After`, conditional reads
 - **ADR-0010:** TanStack Query and the seat-map component
 - **ADR-0012:** the unavailable-seat list, lazy expiry and the server cache
+- **ADR-0013:** the gateway, its rate limit for availability polling and its single-origin rule
 
 ## References
 
