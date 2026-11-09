@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | v2, Proposed (replaces the v1 baseline; becomes Accepted together with the ADRs) |
+| **Status** | v2, Accepted (replaces the v1 baseline) |
 | **Date** | 2026-11-09 |
 | **Governs** | Charter v1.1, section 8 |
 | **Reflects** | ADR-0001 to ADR-0013 |
