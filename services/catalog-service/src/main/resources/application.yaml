@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: catalog-service
+
+server:
+  port: 18081
+
+# Health endpoints live on their own port, which the gateway never routes (ADR-0008, ADR-0013).
+management:
+  server:
+    port: 19081
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"

@@ -36,9 +36,7 @@
     </dependencies>
   </dependencyManagement>
 
-  <!-- Services are added here, one per pull request:
   <modules>
-    <module>services/identity</module>
+    <module>services/catalog-service</module>
   </modules>
-  -->
 </project>

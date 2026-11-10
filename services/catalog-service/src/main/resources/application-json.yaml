@@ -1,0 +1,6 @@
+# Activate with the "json" profile: structured JSON logs on standard output (ADR-0008).
+# The MDC (including correlationId) is included in every line.
+logging:
+  structured:
+    format:
+      console: ecs
