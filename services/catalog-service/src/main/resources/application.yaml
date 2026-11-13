@@ -2,13 +2,15 @@ spring:
   application:
     name: catalog-service
   # Each service owns its own database and role (ADR-0005). The password has no default,
-  # so the service refuses to start without it (NFR-7: no secrets in the repository).
+  # so no secret is stored in the repository (NFR-7). If it is missing, Spring keeps the literal
+  # placeholder text and the database rejects the login at startup.
   datasource:
     url: ${CATALOG_DB_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/catalog}
     username: ${CATALOG_DB_USER:catalog}
     password: ${CATALOG_DB_PASSWORD}
     hikari:
       maximum-pool-size: 5
+      connection-timeout: 3000
 
 server:
   port: 18081
