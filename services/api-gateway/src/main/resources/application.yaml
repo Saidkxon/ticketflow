@@ -5,6 +5,11 @@ spring:
 server:
   port: 18080
 
+# Where the gateway finds each service: a configured address, no discovery server (ADR-0013, rule G11).
+ticketflow:
+  gateway:
+    catalog-uri: ${CATALOG_URI:http://localhost:18081}
+
 # Health endpoints live on their own port, which is never routed (ADR-0008, ADR-0013).
 # The gateway has no database, so readiness is only its own state.
 management:
