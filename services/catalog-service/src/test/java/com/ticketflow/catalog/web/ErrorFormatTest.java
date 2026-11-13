@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.ticketflow.catalog.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +25,7 @@ import org.springframework.web.context.WebApplicationContext;
 /** ADR-0009, test obligation 4: every error is valid problem+json with code and correlationId. */
 @SpringBootTest
 @Import(ErrorFormatTest.ProbeController.class)
-class ErrorFormatTest {
+class ErrorFormatTest extends AbstractPostgresIntegrationTest {
 
     private static final String CORRELATION_ID = "11111111-2222-3333-4444-555555555555";
     private static final String PROBLEM_BASE = "https://api.ticketflow.example/problems/";

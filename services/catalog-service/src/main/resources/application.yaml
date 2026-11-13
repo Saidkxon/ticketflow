@@ -1,11 +1,20 @@
 spring:
   application:
     name: catalog-service
+  # Each service owns its own database and role (ADR-0005). The password has no default,
+  # so the service refuses to start without it (NFR-7: no secrets in the repository).
+  datasource:
+    url: ${CATALOG_DB_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/catalog}
+    username: ${CATALOG_DB_USER:catalog}
+    password: ${CATALOG_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
 
 server:
   port: 18081
 
 # Health endpoints live on their own port, which the gateway never routes (ADR-0008, ADR-0013).
+# Readiness depends on this service's own database only (ADR-0008).
 management:
   server:
     port: 19081
@@ -17,6 +26,9 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,db
 
 logging:
   pattern:
