@@ -1,0 +1,176 @@
+openapi: 3.1.0
+info:
+  title: TicketFlow Event Catalog API
+  version: 1.0.0
+  description: |
+    Public API of the Event Catalog service, reached through the API gateway (ADR-0002, ADR-0013).
+    This file is the source of truth: a change to behavior starts with a change here (ADR-0009, part E).
+
+    Walking-skeleton scope: only the event list exists. Fields and operations are added
+    in later pull requests; additive changes do not create a new major version (ADR-0009, part A).
+servers:
+  - url: /api/v1
+    description: Same origin as the web app (ADR-0013, rule G10)
+tags:
+  - name: events
+    description: Browsing events
+
+paths:
+  /events:
+    get:
+      tags: [events]
+      operationId: listEvents
+      summary: List published events
+      description: |
+        Public, no token needed. Pages start at 0. Results are sorted by start time, then by ID,
+        so pages do not shuffle (ADR-0009, part D).
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of events (empty when none exist yet)
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Page number, starting at 0
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      description: Items per page (maximum 50)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+
+  headers:
+    CorrelationId:
+      description: Correlation ID of this request (ADR-0009). Created by the gateway when the caller sends none.
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    EventPage:
+      type: object
+      required: [items, page, size, totalItems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventSummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 50
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
+    EventSummary:
+      type: object
+      required: [id, title, startsAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+          description: ISO 8601 in UTC, with a trailing Z
+
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details with our stable machine-readable code (ADR-0009, part B)
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: string
+          description: Stable identifier. Clients switch on this, never on title or detail text.
+          examples: [INVALID_REQUEST]
+        detail:
+          type: string
+        instance:
+          type: string
+        correlationId:
+          type: string
+          format: uuid
+        errors:
+          type: array
+          description: Present on validation failures (field and problem)
+          items:
+            type: object
+            required: [field, problem]
+            properties:
+              field:
+                type: string
+              problem:
+                type: string
+
+  responses:
+    InvalidRequest:
+      description: Invalid input. Code INVALID_REQUEST.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Rate limit exceeded. Code RATE_LIMITED.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: Unexpected server error. Code INTERNAL_ERROR. No internal details are exposed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unavailable:
+      description: Service or upstream temporarily unavailable. Code UPSTREAM_UNAVAILABLE.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
