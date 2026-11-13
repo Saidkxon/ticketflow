@@ -50,6 +50,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static void enrich(ProblemDetail problem) {
         String code = codeFor(problem.getStatus());
+        if (problem.getStatus() == 404) {
+            // Spring's own text mentions "static resource", which means nothing to a caller (ADR-0013, rule G5).
+            problem.setDetail("No route matches this path.");
+        }
         problem.setType(URI.create(PROBLEM_BASE_URI + code.toLowerCase(Locale.ROOT).replace('_', '-')));
         problem.setProperty("code", code);
         String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);

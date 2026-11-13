@@ -52,6 +52,7 @@ class ErrorFormatTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.code").value("ROUTE_NOT_FOUND"))
                 .andExpect(jsonPath("$.type").value(PROBLEM_BASE + "route-not-found"))
+                .andExpect(jsonPath("$.detail").value("No route matches this path."))
                 .andExpect(jsonPath("$.correlationId").value(CORRELATION_ID));
     }
 

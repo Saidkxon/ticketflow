@@ -3,8 +3,13 @@ package com.ticketflow.gateway.web;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -37,12 +42,50 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         response.setHeader(HEADER, correlationId);
         long startNanos = System.nanoTime();
         try {
-            chain.doFilter(request, response);
+            chain.doFilter(new WithCorrelationId(request, correlationId), response);
         } finally {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
             log.info("request completed method={} path={} status={} durationMs={}",
                     request.getMethod(), request.getRequestURI(), response.getStatus(), durationMs);
             MDC.remove(MDC_KEY);
+        }
+    }
+
+    /**
+     * Presents the resolved ID as the request's X-Correlation-ID header, so the gateway forwards
+     * the created or replacement value to the service instead of the caller's original (ADR-0009).
+     */
+    private static final class WithCorrelationId extends HttpServletRequestWrapper {
+
+        private final String correlationId;
+
+        WithCorrelationId(HttpServletRequest request, String correlationId) {
+            super(request);
+            this.correlationId = correlationId;
+        }
+
+        @Override
+        public String getHeader(String name) {
+            return HEADER.equalsIgnoreCase(name) ? correlationId : super.getHeader(name);
+        }
+
+        @Override
+        public Enumeration<String> getHeaders(String name) {
+            return HEADER.equalsIgnoreCase(name)
+                    ? Collections.enumeration(Set.of(correlationId))
+                    : super.getHeaders(name);
+        }
+
+        @Override
+        public Enumeration<String> getHeaderNames() {
+            Set<String> names = new LinkedHashSet<>();
+            for (String name : Collections.list(super.getHeaderNames())) {
+                if (!HEADER.equalsIgnoreCase(name)) {
+                    names.add(name);
+                }
+            }
+            names.add(HEADER);
+            return Collections.enumeration(names);
         }
     }
 
