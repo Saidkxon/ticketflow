@@ -38,5 +38,6 @@
 
   <modules>
     <module>services/catalog-service</module>
+    <module>services/api-gateway</module>
   </modules>
 </project>

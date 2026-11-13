@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: api-gateway
+
+server:
+  port: 18080
+
+# Health endpoints live on their own port, which is never routed (ADR-0008, ADR-0013).
+# The gateway has no database, so readiness is only its own state.
+management:
+  server:
+    port: 19080
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
