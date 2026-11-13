@@ -27,6 +27,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
     private static final String PROBLEM_BASE_URI = "https://api.ticketflow.example/problems/";
 
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidRequest(InvalidRequestException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, "The request is not valid.");
+        problem.setTitle("Invalid request");
+        problem.setProperty("errors", ex.errors());
+        enrich(problem);
+        return ResponseEntity.badRequest().body(problem);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(Exception ex) {
         log.error("unhandled exception", ex);
