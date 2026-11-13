@@ -1,6 +1,12 @@
 spring:
   application:
     name: api-gateway
+  # Timeouts for calls to services (ADR-0013, rule G6): a starting point to tune from measurements.
+  # The gateway builds its calls with Spring Boot's shared HTTP client settings.
+  http:
+    clients:
+      connect-timeout: 5s
+      read-timeout: 5s
 
 server:
   port: 18080
