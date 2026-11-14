@@ -152,5 +152,5 @@ The failure paths are decided in ADR-0006 and are not repeated here: payment fai
 
 ## Still deliberately open
 
-- **Deployment target, backups, log retention, TLS termination and the production edge component** are decided at the deployment gate before the walking skeleton is declared done (charter section 7, ADR-0005, ADR-0008, ADR-0013).
+- **The deployment provider, backup scripts and the production runbook** are the remaining deployment details. The target (one VPS with Docker Compose), TLS at the Caddy edge, log retention and the backup rules were decided in ADR-0014.
 - **Email as the notification channel** is confirmed at the first Notification slice.
