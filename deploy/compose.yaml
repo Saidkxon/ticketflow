@@ -27,5 +27,50 @@ services:
       timeout: 5s
       retries: 12
 
+  # The applications run in containers only with the "app" profile; the default "up" starts just
+  # the database, so services can still be run from the IDE. One command for everything:
+  #   docker compose -f deploy/compose.yaml --profile app up -d --build --wait
+  catalog:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: services/catalog-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      CATALOG_DB_URL: jdbc:postgresql://postgres:5432/catalog
+      CATALOG_DB_USER: catalog
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?set CATALOG_DB_PASSWORD in deploy/.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No published ports: only the gateway is reachable from outside (ADR-0013).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:19081/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  gateway:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: services/api-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      CATALOG_URI: http://catalog:18081
+    depends_on:
+      catalog:
+        condition: service_healthy
+    ports:
+      # Bound to this computer only, never to the network.
+      - "127.0.0.1:${GATEWAY_PORT:-18080}:18080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:19080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
 volumes:
   postgres-data:
