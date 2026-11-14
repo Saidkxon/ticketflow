@@ -3,3 +3,10 @@
 spring:
   config:
     import: optional:file:./deploy/.env[.properties]
+
+# The development key made by: bash scripts/generate-dev-key.sh (git-ignored, never used outside development).
+ticketflow:
+  identity:
+    jwt:
+      key-directory: ./deploy/keys
+      signing-key-id: dev-1

@@ -30,6 +30,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
+    <!-- Signing and encoding access tokens (JWT). Version managed by Spring Boot. -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
     <!-- Entities with a lifecycle use JPA (ADR-0005, option C3) -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

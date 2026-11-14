@@ -22,7 +22,13 @@ If the port is blocked or already in use (Windows can reserve ports), set POSTGR
 
 ## Run everything in containers
 
-Builds the web app, the gateway and the Catalog service into images and starts them with the database. The first build downloads Maven and npm dependencies and takes a few minutes; later builds reuse the cache.
+Builds the web app, the gateway, the Catalog service and the Identity service into images and starts them with the database. The first build downloads Maven and npm dependencies and takes a few minutes; later builds reuse the cache.
+
+Once, before the first start, make the development key that the Identity service uses to sign access tokens. It is saved in `deploy/keys/` (git-ignored) and is for development only:
+
+    bash scripts/generate-dev-key.sh
+
+Then:
 
     docker compose -f deploy/compose.yaml --profile app up -d --build --wait
     bash scripts/smoke-test.sh                                    # end-to-end checks of the running stack
@@ -31,6 +37,13 @@ Builds the web app, the gateway and the Catalog service into images and starts t
 Open http://localhost:18090 in the browser (set `WEB_PORT` in `deploy/.env` to change it). The web container serves the app and forwards `/api` to the gateway, so the browser talks to one origin (ADR-0013, G10). The gateway is also published on `127.0.0.1:18080` for `curl` and tests (`GATEWAY_PORT` changes it). The Catalog service and the health ports stay inside the container network (ADR-0008, ADR-0013). Running a service from the IDE and the same service in a container at the same time is not supported: they would compete for ports.
 
 This is the local setup. Which component serves the app in production is decided at the deployment gate (ADR-0013, G10).
+
+## Signing keys for access tokens
+
+The Identity service signs access tokens (JWT) with an RSA key that it reads from a directory (ADR-0004). Every file `NAME.pem` in that directory is one key with the ID `NAME`; the key named by `IDENTITY_JWT_SIGNING_KEY_ID` signs new tokens, and all of them are published (public part only) at `/.well-known/jwks.json` so tokens can be checked. The format is PKCS#8 PEM (`-----BEGIN PRIVATE KEY-----`), at least 2048 bits. A missing directory, key or key ID stops the service at startup with a message that says what is wrong.
+
+- **Development and CI:** `bash scripts/generate-dev-key.sh` creates `deploy/keys/dev-1.pem`. The `deploy/keys/` folder is git-ignored and excluded from images. Never use a development key anywhere else.
+- **Rotating a key:** add the new file (for example `2027-01.pem`), set `IDENTITY_JWT_SIGNING_KEY_ID` to its ID, and restart Identity. Keep the old file for at least the access token lifetime (15 minutes) so tokens it signed stay valid, then delete it. The production procedure is written with the deployment runbook (ADR-0014).
 
 ## Local ports
 

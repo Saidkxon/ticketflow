@@ -22,6 +22,14 @@ spring:
     deserialization:
       fail-on-unknown-properties: true
 
+# Access tokens (ADR-0004). The signing keys are files in a directory (see deploy/README.md); there is
+# no default, so a missing key stops the service at startup instead of running with a wrong one.
+ticketflow:
+  identity:
+    jwt:
+      key-directory: ${IDENTITY_JWT_KEY_DIRECTORY:}
+      signing-key-id: ${IDENTITY_JWT_SIGNING_KEY_ID:}
+
 server:
   port: 18082
 

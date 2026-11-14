@@ -61,6 +61,12 @@ services:
       IDENTITY_DB_URL: jdbc:postgresql://postgres:5432/identity
       IDENTITY_DB_USER: identity
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?set IDENTITY_DB_PASSWORD in deploy/.env}
+      # Access token signing keys are files in a directory (ADR-0004). Make the development key first:
+      #   bash scripts/generate-dev-key.sh
+      IDENTITY_JWT_KEY_DIRECTORY: /run/keys
+      IDENTITY_JWT_SIGNING_KEY_ID: ${IDENTITY_JWT_SIGNING_KEY_ID:-dev-1}
+    volumes:
+      - ./keys:/run/keys:ro
     depends_on:
       postgres:
         condition: service_healthy
