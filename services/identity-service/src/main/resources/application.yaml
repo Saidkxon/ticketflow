@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: identity-service
+  # Each service owns its own database and role (ADR-0005). The password has no default,
+  # so no secret is stored in the repository (NFR-7). If it is missing, Spring keeps the literal
+  # placeholder text and the database rejects the login at startup.
+  datasource:
+    url: ${IDENTITY_DB_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/identity}
+    username: ${IDENTITY_DB_USER:identity}
+    password: ${IDENTITY_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 3000
+
+server:
+  port: 18082
+
+# Health endpoints live on their own port, which the gateway never routes (ADR-0008, ADR-0013).
+# Readiness depends on this service's own database only (ADR-0008).
+management:
+  server:
+    port: 19082
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"

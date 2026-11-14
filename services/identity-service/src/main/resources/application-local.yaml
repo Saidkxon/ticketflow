@@ -1,0 +1,5 @@
+# Activate with the "local" profile when running from the repository root:
+# reads the git-ignored deploy/.env, so the database password never lives in the repository.
+spring:
+  config:
+    import: optional:file:./deploy/.env[.properties]

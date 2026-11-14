@@ -51,6 +51,27 @@ services:
       retries: 12
       start_period: 30s
 
+  identity:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: services/identity-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      IDENTITY_DB_URL: jdbc:postgresql://postgres:5432/identity
+      IDENTITY_DB_USER: identity
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?set IDENTITY_DB_PASSWORD in deploy/.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No published ports: reachable only through the gateway, once routes exist (ADR-0013).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:19082/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   gateway:
     profiles: ["app"]
     build:

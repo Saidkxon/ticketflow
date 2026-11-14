@@ -9,6 +9,7 @@ COPY mvnw pom.xml ./
 COPY .mvn .mvn
 COPY services/catalog-service/pom.xml services/catalog-service/pom.xml
 COPY services/api-gateway/pom.xml services/api-gateway/pom.xml
+COPY services/identity-service/pom.xml services/identity-service/pom.xml
 COPY services/catalog-service/src services/catalog-service/src
 # Tests run in CI, not in the image build.
 RUN --mount=type=cache,target=/root/.m2 \
