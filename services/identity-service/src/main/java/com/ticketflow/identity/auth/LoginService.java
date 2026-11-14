@@ -1,7 +1,7 @@
 package com.ticketflow.identity.auth;
 
-import com.ticketflow.identity.tokens.AccessTokenService;
-import com.ticketflow.identity.tokens.IssuedToken;
+import com.ticketflow.identity.sessions.Session;
+import com.ticketflow.identity.sessions.SessionService;
 import com.ticketflow.identity.users.User;
 import com.ticketflow.identity.users.UserRepository;
 import com.ticketflow.identity.web.FieldProblem;
@@ -16,7 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 /**
- * Checks an email and password and issues an access token (FR-1). A wrong password and an unknown
+ * Checks an email and password and opens a session: an access token and a refresh token (FR-1). A wrong password and an unknown
  * email give exactly the same answer, and cost about the same time, because a password is always
  * hashed and compared (ADR-0004).
  */
@@ -28,20 +28,20 @@ public class LoginService {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final LoginThrottle throttle;
-    private final AccessTokenService tokens;
+    private final SessionService sessions;
     /** Compared against when the email is unknown, so that case takes as long as a real check. */
     private final String unknownUserHash;
 
     public LoginService(UserRepository users, PasswordEncoder passwordEncoder, LoginThrottle throttle,
-            AccessTokenService tokens) {
+            SessionService sessions) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.throttle = throttle;
-        this.tokens = tokens;
+        this.sessions = sessions;
         this.unknownUserHash = passwordEncoder.encode("a password that no account has");
     }
 
-    public IssuedToken login(LoginRequest request) {
+    public Session login(LoginRequest request) {
         validate(request);
         String email = request.email().trim().toLowerCase(Locale.ROOT);
 
@@ -59,7 +59,7 @@ public class LoginService {
         }
         throttle.recordSuccess(email);
         log.info("login succeeded userId={}", user.get().getId());
-        return tokens.issue(user.get());
+        return sessions.open(user.get());
     }
 
     private static void validate(LoginRequest request) {
