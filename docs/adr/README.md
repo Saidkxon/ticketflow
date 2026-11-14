@@ -21,6 +21,7 @@ An ADR captures one significant decision: the context, the options we weighed, w
 | [0011](0011-realtime-seat-updates.md) | Keeping the browser up to date (seat map, hold countdown, payment status) | Accepted |
 | [0012](0012-seat-state-holds-expiry.md) | Seat-state ownership, holds and expiry | Accepted |
 | [0013](0013-api-gateway.md) | API gateway: technology, responsibilities and routing | Accepted |
+| [0014](0014-deployment-target.md) | Deployment target: one VPS with Docker Compose | Accepted |
 
 ## Suggested order for the remaining ADRs
 

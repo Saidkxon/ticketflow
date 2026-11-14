@@ -115,7 +115,7 @@ Targets are starting points and will be revised once we have real measurements.
 - **Stack:** Java and Spring Boot for the backend; frontend stack fixed in an ADR. Specific versions fixed after checking what is current.
 - **Dev machine:** Windows laptop, so Docker memory is limited; the full stack must stay lean.
 - **Payments:** simulated in MVP.
-- **Deployment:** target **undecided**; the system is containerized from day one. **Gate:** the target must be chosen before the walking skeleton is finished, because CI/CD design depends on it.
+- **Deployment:** one Linux VPS running Docker Compose, decided in [ADR-0014](adr/0014-deployment-target.md) (the gate before the end of the walking skeleton). The provider is chosen separately. The system is containerized from day one.
 - **Budget:** minimal; prefer free tiers and a single small server.
 
 ## 8. Preliminary components
@@ -195,3 +195,4 @@ Realistic total: **about 5-6 months** at the stated pace. Estimates will be re-b
 | D7 | Project name: TicketFlow | Instructor | 2026-11-01 |
 | D8 | Charter v1.0 approved | Instructor | 2026-11-01 |
 | D9 | Frontend technology decision delegated to the architect; recorded in ADR-010 | Instructor | 2026-11-01 |
+| D10 | Deployment target: one VPS with Docker Compose (ADR-0014) | Instructor | 2026-11-14 |
