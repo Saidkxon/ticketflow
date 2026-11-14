@@ -6,4 +6,5 @@
 web
 docs
 deploy/.env
+deploy/keys
 *.iml

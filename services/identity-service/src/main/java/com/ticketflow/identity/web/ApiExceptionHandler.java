@@ -1,6 +1,8 @@
 package com.ticketflow.identity.web;
 
 import com.ticketflow.identity.auth.EmailAlreadyRegisteredException;
+import com.ticketflow.identity.auth.InvalidCredentialsException;
+import com.ticketflow.identity.auth.TooManyAttemptsException;
 import java.net.URI;
 import java.util.Locale;
 import org.slf4j.Logger;
@@ -47,6 +49,27 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidCredentials(InvalidCredentialsException ex) {
+        // The same answer for a wrong password and for an unknown email (ADR-0004, ADR-0009).
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, "The email or the password is not correct.");
+        problem.setTitle("Invalid credentials");
+        enrich(problem, "INVALID_CREDENTIALS");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+    }
+
+    @ExceptionHandler(TooManyAttemptsException.class)
+    public ResponseEntity<ProblemDetail> handleTooManyAttempts(TooManyAttemptsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.TOO_MANY_REQUESTS, "Too many attempts. Try again later.");
+        problem.setTitle("Too many requests");
+        enrich(problem, "RATE_LIMITED");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()))
+                .body(problem);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(Exception ex) {
         log.error("unhandled exception", ex);
@@ -85,6 +108,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return switch (status) {
             case 400 -> "INVALID_REQUEST";
             case 404 -> "NOT_FOUND";
+            case 429 -> "RATE_LIMITED";
             case 405 -> "METHOD_NOT_ALLOWED";
             case 406 -> "NOT_ACCEPTABLE";
             case 415 -> "UNSUPPORTED_MEDIA_TYPE";

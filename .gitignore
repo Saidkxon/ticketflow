@@ -4,3 +4,7 @@ target/
 *.iml
 
 .env
+
+# Signing keys and any private key file: never committed (ADR-0004, NFR-7)
+deploy/keys/
+*.pem

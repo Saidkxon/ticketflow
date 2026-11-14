@@ -15,7 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 /**
  * Security rules of the Identity service (ADR-0004). Everything is closed unless listed here.
- * Public so far: registration. Login, the public keys and the token checks arrive in later pull requests.
+ * Public so far: registration, login and the public keys. Refresh, logout and the token checks arrive in later pull requests.
  */
 @Configuration(proxyBeanMethods = false)
 class SecurityConfig {
@@ -50,7 +50,9 @@ class SecurityConfig {
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                        // Public keys; the gateway does not route this path (ADR-0004).
+                        .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
                         .anyRequest().authenticated());
         return http.build();
     }
