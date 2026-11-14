@@ -1,5 +1,6 @@
 package com.ticketflow.identity.web;
 
+import com.ticketflow.identity.auth.EmailAlreadyRegisteredException;
 import java.net.URI;
 import java.util.Locale;
 import org.slf4j.Logger;
@@ -37,6 +38,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.badRequest().body(problem);
     }
 
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    public ResponseEntity<ProblemDetail> handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, "This email is already registered.");
+        problem.setTitle("Email already registered");
+        enrich(problem, "EMAIL_ALREADY_REGISTERED");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(Exception ex) {
         log.error("unhandled exception", ex);
@@ -59,7 +69,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private static void enrich(ProblemDetail problem) {
-        String code = codeFor(problem.getStatus());
+        enrich(problem, codeFor(problem.getStatus()));
+    }
+
+    private static void enrich(ProblemDetail problem, String code) {
         problem.setType(URI.create(PROBLEM_BASE_URI + code.toLowerCase(Locale.ROOT).replace('_', '-')));
         problem.setProperty("code", code);
         String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);

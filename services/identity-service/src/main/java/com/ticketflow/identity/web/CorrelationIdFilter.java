@@ -10,6 +10,8 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -19,7 +21,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * client can never inject arbitrary text into the logs. The ID is available to
  * every log line through the MDC and is returned in the response header.
  */
+/**
+ * Runs before the security filters, so even a 401 carries a correlation ID.
+ */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
     public static final String HEADER = "X-Correlation-ID";

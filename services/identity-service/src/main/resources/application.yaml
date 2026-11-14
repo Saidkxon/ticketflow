@@ -12,6 +12,16 @@ spring:
       maximum-pool-size: 5
       connection-timeout: 3000
 
+  # Flyway owns the schema; Hibernate only checks that the entities match it (ADR-0005).
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  # A request body with a field we do not know is rejected, so nobody can slip in a field such as "roles".
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
 server:
   port: 18082
 
