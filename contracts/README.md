@@ -5,6 +5,7 @@ The OpenAPI files here are the **source of truth** for every public API (ADR-000
 | File | Service | Status |
 |---|---|---|
 | [catalog.openapi.yaml](catalog.openapi.yaml) | Event Catalog | Walking skeleton: event list only |
+| [identity.openapi.yaml](identity.openapi.yaml) | Identity | Proposed: register, login, refresh, logout, current user, roles, public keys (no code yet) |
 
 Rules (ADR-0009):
 

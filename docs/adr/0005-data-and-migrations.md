@@ -168,3 +168,7 @@ This ADR decides: **(A)** engine and topology, **(B)** the migration tool, **(C)
 
 - Charter v1.0: NFR-2, NFR-3, NFR-4, NFR-7, NFR-8, section 7
 - PostgreSQL versioning policy: https://www.postgresql.org/support/versioning (checked 2026-11-08)
+
+## Clarifications
+
+- **2026-11-14, data access in simple reads.** Option C3 stays: entities with a lifecycle (users, refresh tokens, events that are created and edited) use Spring Data JPA. A plain read query that returns a list or a summary, such as Catalog's published-event list, may use Spring's `JdbcClient` with explicit SQL. Seat operations and every outbox or processed-event operation use explicit SQL, as written above.
