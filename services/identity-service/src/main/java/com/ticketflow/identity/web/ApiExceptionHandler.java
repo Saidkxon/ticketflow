@@ -3,6 +3,9 @@ package com.ticketflow.identity.web;
 import com.ticketflow.identity.auth.EmailAlreadyRegisteredException;
 import com.ticketflow.identity.auth.InvalidCredentialsException;
 import com.ticketflow.identity.auth.TooManyAttemptsException;
+import com.ticketflow.identity.sessions.InvalidRefreshTokenException;
+import com.ticketflow.identity.sessions.RefreshCookies;
+import com.ticketflow.identity.sessions.RequestOriginNotAllowedException;
 import java.net.URI;
 import java.util.Locale;
 import org.slf4j.Logger;
@@ -29,6 +32,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
     private static final String PROBLEM_BASE_URI = "https://api.ticketflow.example/problems/";
+
+    private final RefreshCookies refreshCookies;
+
+    public ApiExceptionHandler(RefreshCookies refreshCookies) {
+        this.refreshCookies = refreshCookies;
+    }
 
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<ProblemDetail> handleInvalidRequest(InvalidRequestException ex) {
@@ -68,6 +77,27 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()))
                 .body(problem);
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
+        // One answer for missing, unknown, expired, revoked and reused (ADR-0004). The dead cookie is cleared.
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, "The session is not valid. Log in again.");
+        problem.setTitle("Invalid refresh token");
+        enrich(problem, "INVALID_REFRESH_TOKEN");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.SET_COOKIE, refreshCookies.clear())
+                .body(problem);
+    }
+
+    @ExceptionHandler(RequestOriginNotAllowedException.class)
+    public ResponseEntity<ProblemDetail> handleOriginNotAllowed(RequestOriginNotAllowedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN, "This request is not allowed from here.");
+        problem.setTitle("Request origin not allowed");
+        enrich(problem, "REQUEST_ORIGIN_NOT_ALLOWED");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 
     @ExceptionHandler(Exception.class)

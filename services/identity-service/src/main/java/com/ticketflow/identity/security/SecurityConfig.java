@@ -15,7 +15,8 @@ import org.springframework.security.web.SecurityFilterChain;
 
 /**
  * Security rules of the Identity service (ADR-0004). Everything is closed unless listed here.
- * Public so far: registration, login and the public keys. Refresh, logout and the token checks arrive in later pull requests.
+ * Public so far: registration, login, refresh, logout and the public keys. The token checks arrive in a later pull request.
+ * Refresh and logout are open to the security chain because they stand on the refresh cookie, and are guarded separately (BrowserRequestGuard).
  */
 @Configuration(proxyBeanMethods = false)
 class SecurityConfig {
@@ -44,13 +45,14 @@ class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 // Spring's CSRF token is for session cookies. Here the refresh cookie is protected
-                // by a required custom header and an origin check (ADR-0004), added with that endpoint.
+                // by a required custom header and an origin check (ADR-0004), see BrowserRequestGuard.
                 .csrf(AbstractHttpConfigurer::disable)
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login",
+                                "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
                         // Public keys; the gateway does not route this path (ADR-0004).
                         .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
                         .anyRequest().authenticated());
