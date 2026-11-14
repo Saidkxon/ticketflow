@@ -25,6 +25,17 @@
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
 
+    <!-- Security: password hashing and the filter chain (ADR-0004). Token handling is added in later pull requests. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <!-- Entities with a lifecycle use JPA (ADR-0005, option C3) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+
     <!-- Database: JDBC, Flyway migrations and the PostgreSQL driver (ADR-0005) -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
