@@ -1,0 +1,9 @@
+# Keep the build context small and free of local files. The context is the repository root.
+.git
+.idea
+**/target
+**/node_modules
+web
+docs
+deploy/.env
+*.iml
