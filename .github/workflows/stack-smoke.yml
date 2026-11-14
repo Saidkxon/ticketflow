@@ -1,0 +1,32 @@
+name: stack-smoke
+
+# Starts the whole system with the documented command and checks it end to end (NFR-8).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  stack-smoke:
+    name: stack-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create deploy/.env from the example
+        run: cp deploy/.env.example deploy/.env
+      - name: Start the stack
+        run: docker compose -f deploy/compose.yaml --profile app up -d --build --wait
+      - name: Smoke test
+        run: bash scripts/smoke-test.sh
+      - name: Show container logs when something failed
+        if: failure()
+        run: |
+          docker compose -f deploy/compose.yaml --profile app ps -a
+          docker compose -f deploy/compose.yaml --profile app logs --no-color --tail 100
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f deploy/compose.yaml --profile app down -v

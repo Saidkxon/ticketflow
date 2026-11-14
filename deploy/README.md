@@ -22,13 +22,15 @@ If the port is blocked or already in use (Windows can reserve ports), set POSTGR
 
 ## Run everything in containers
 
-Builds the Catalog service and the gateway into images and starts them with the database. The first build downloads Maven dependencies and takes a few minutes; later builds reuse the cache.
+Builds the web app, the gateway and the Catalog service into images and starts them with the database. The first build downloads Maven and npm dependencies and takes a few minutes; later builds reuse the cache.
 
     docker compose -f deploy/compose.yaml --profile app up -d --build --wait
-    curl localhost:18080/api/v1/events                         # through the gateway, to the Catalog, to the database
+    bash scripts/smoke-test.sh                                    # end-to-end checks of the running stack
     docker compose -f deploy/compose.yaml --profile app down   # stop, keep the data
 
-Only the gateway is reachable from your computer (`127.0.0.1:18080`; set `GATEWAY_PORT` in `deploy/.env` to change it). The Catalog service and the health ports stay inside the container network (ADR-0008, ADR-0013). Running a service from the IDE and the same service in a container at the same time is not supported: they would compete for ports.
+Open http://localhost:18090 in the browser (set `WEB_PORT` in `deploy/.env` to change it). The web container serves the app and forwards `/api` to the gateway, so the browser talks to one origin (ADR-0013, G10). The gateway is also published on `127.0.0.1:18080` for `curl` and tests (`GATEWAY_PORT` changes it). The Catalog service and the health ports stay inside the container network (ADR-0008, ADR-0013). Running a service from the IDE and the same service in a container at the same time is not supported: they would compete for ports.
+
+This is the local setup. Which component serves the app in production is decided at the deployment gate (ADR-0013, G10).
 
 ## Local ports
 
