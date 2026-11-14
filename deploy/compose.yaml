@@ -72,5 +72,24 @@ services:
       retries: 12
       start_period: 30s
 
+  web:
+    profiles: ["app"]
+    build:
+      context: ../web
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_healthy
+    ports:
+      # Bound to this computer only, never to the network. This is the address for the browser.
+      - "127.0.0.1:${WEB_PORT:-18090}:8080"
+    healthcheck:
+      # 127.0.0.1, not localhost: nginx here listens on IPv4 only.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
 volumes:
   postgres-data:
