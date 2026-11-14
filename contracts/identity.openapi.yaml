@@ -1,0 +1,616 @@
+openapi: 3.1.0
+info:
+  title: TicketFlow Identity API
+  version: 1.0.0
+  description: |
+    Public API of the Identity service, reached through the API gateway (ADR-0002, ADR-0013).
+    This file is the source of truth: a change to behavior starts with a change here (ADR-0009, part E).
+    Authentication rules come from ADR-0004.
+
+    **Tokens.** The access token is a signed JWT valid for 15 minutes, sent as
+    `Authorization: Bearer <token>` and kept in memory by the web app. Claims: `sub` (user ID),
+    `roles`, `iss`, `aud`, `iat`, `exp`, `jti`. It contains no email, name or other personal data.
+    The refresh token is an opaque value valid for 7 days, rotated on every use, and travels only
+    in an HttpOnly cookie that JavaScript cannot read.
+
+    **Plain errors (ADR-0009).** A 401 or 403 never says why: it does not reveal whether an email
+    exists, which part of a token was wrong, or which role would have worked.
+
+    **Error codes used by this API:** `INVALID_REQUEST`, `EMAIL_ALREADY_REGISTERED`,
+    `INVALID_CREDENTIALS`, `INVALID_REFRESH_TOKEN`, `REQUEST_ORIGIN_NOT_ALLOWED`, `UNAUTHENTICATED`,
+    `FORBIDDEN`, `USER_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
+
+    **No idempotency key.** ADR-0009 requires `Idempotency-Key` on create-style requests made by a
+    signed-in user. Registration is anonymous and already protected by the unique email, so it is
+    exempt (see the clarification in ADR-0009).
+servers:
+  - url: /api/v1
+    description: Same origin as the web app (ADR-0013, rule G10)
+tags:
+  - name: auth
+    description: Registration, login, token refresh and logout
+  - name: users
+    description: The signed-in user and role management
+  - name: keys
+    description: Public signing keys
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      security: []
+      summary: Create a Customer account
+      description: |
+        Public, no token needed, rate limited at the gateway (10 per minute per address).
+        The new account always has the role `CUSTOMER`. Organizer and Admin roles are granted by
+        an Admin, never through registration (ADR-0004). The password is stored only as a hash.
+
+        A second registration with the same email returns 409. This reveals that the email is
+        registered; it is accepted because the MVP has no email verification, and it is limited by
+        the registration rate limit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '409':
+          description: This email is already registered. Code EMAIL_ALREADY_REGISTERED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: []
+      summary: Log in with email and password
+      description: |
+        Public, no token needed, rate limited at the gateway (10 per minute per address) and slowed
+        down per account after repeated failures (ADR-0004). The slowdown applies to unknown emails
+        in the same way, so it does not reveal which emails exist.
+
+        On success the response sets the refresh cookie `refresh_token` (HttpOnly, Secure,
+        SameSite=Strict, Path `/api/v1/auth`, 7 days) and returns the access token in the body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Wrong email or password. Code INVALID_CREDENTIALS. Same answer for an unknown email.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshToken
+      summary: Get a new access token with the refresh cookie
+      description: |
+        Needs the `refresh_token` cookie, the request header `X-TicketFlow-Client: web`, and an
+        `Origin` header equal to the web app's own origin (defense against cross-site request
+        forgery, ADR-0004). The web app calls this when the page loads and shortly before the
+        access token expires.
+
+        The refresh token is **rotated**: the response sets a new cookie and the old token stops
+        working. Using an already-used token is treated as theft: the whole token family is
+        revoked and the answer is the same plain 401, so every device of that login must log in
+        again.
+      parameters:
+        - $ref: '#/components/parameters/ClientHeader'
+      security:
+        - refreshCookie: []
+      responses:
+        '200':
+          description: New access token and a new refresh cookie
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Missing, expired, unknown, revoked or reused refresh token. Code INVALID_REFRESH_TOKEN.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The custom header is missing or the origin is not allowed. Code REQUEST_ORIGIN_NOT_ALLOWED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Log out and revoke the refresh token family
+      description: |
+        Same header and origin rules as the refresh endpoint. Always answers 204 and clears the
+        cookie, even when no valid cookie was sent, so a client can call it safely at any time.
+        Access tokens already issued stay valid until they expire, at most 15 minutes (ADR-0004).
+      parameters:
+        - $ref: '#/components/parameters/ClientHeader'
+      security:
+        - refreshCookie: []
+      responses:
+        '204':
+          description: Logged out. The cookie is cleared.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Set-Cookie:
+              description: Clears `refresh_token` (Max-Age 0)
+              schema:
+                type: string
+        '403':
+          description: The custom header is missing or the origin is not allowed. Code REQUEST_ORIGIN_NOT_ALLOWED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /users/me:
+    get:
+      tags: [users]
+      operationId: getCurrentUser
+      summary: The signed-in user
+      description: The user ID comes from the token (`sub`), never from a request field.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The current user
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /users:
+    get:
+      tags: [users]
+      operationId: listUsers
+      summary: List users (Admin only)
+      description: |
+        Needs the role `ADMIN`; the check happens in Identity itself (ADR-0004). Sorted by
+        creation time, then by ID. An Admin uses the `email` filter to find the user to promote.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: email
+          in: query
+          description: Exact email match, case-insensitive
+          required: false
+          schema:
+            type: string
+            maxLength: 254
+      responses:
+        '200':
+          description: One page of users
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /users/{userId}/roles:
+    put:
+      tags: [users]
+      operationId: setUserRoles
+      summary: Replace a user's roles (Admin only)
+      description: |
+        Needs the role `ADMIN`. `CUSTOMER` is always kept: the new role set always includes it,
+        whether or not it is in the request. An Admin cannot remove their own `ADMIN` role, so the
+        system cannot end up without an Admin. A role change reaches the user's token only when
+        it is next refreshed, up to 15 minutes later (ADR-0004).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRolesRequest'
+      responses:
+        '200':
+          description: The updated user
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No such user. Code USER_NOT_FOUND.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /.well-known/jwks.json:
+    get:
+      tags: [keys]
+      operationId: getSigningKeys
+      summary: Public keys for checking access tokens
+      description: |
+        Used by the gateway and every service to validate access tokens (ADR-0004, part B).
+        Public keys only; no token is needed. **The gateway does not route this path** (it is
+        not in the gateway's route list), so it is reachable only inside the container network,
+        on Identity's application port. It lives outside `/api/v1`. Each key has a key ID (`kid`)
+        so keys can be rotated: during a rotation the previous public key stays in the list until
+        every token signed with it has expired.
+      servers:
+        - url: /
+          description: Identity's own address, inside the container network only
+      security: []
+      responses:
+        '200':
+          description: The key set (RFC 7517)
+          headers:
+            Cache-Control:
+              description: Clients may cache the key set briefly
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JsonWebKeySet'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Page number, starting at 0
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      description: Items per page (maximum 50)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    ClientHeader:
+      name: X-TicketFlow-Client
+      in: header
+      description: Must be `web`. A browser cannot add a custom header in a cross-site form post, which blocks request forgery.
+      required: true
+      schema:
+        type: string
+        enum: [web]
+
+  headers:
+    CorrelationId:
+      description: Correlation ID of this request (ADR-0009). Created by the gateway when the caller sends none.
+      schema:
+        type: string
+        format: uuid
+    RefreshCookie:
+      description: |
+        `refresh_token=<opaque value>; Max-Age=604800; Path=/api/v1/auth; HttpOnly; Secure; SameSite=Strict`
+      schema:
+        type: string
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password, displayName]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 10
+          maxLength: 72
+          writeOnly: true
+          description: |
+            10 to 72 characters, and at most 72 bytes in UTF-8 (the limit of the default hashing
+            algorithm; confirmed when Identity is built). Never logged and never returned.
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          maxLength: 254
+        password:
+          type: string
+          maxLength: 72
+          writeOnly: true
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+          description: Signed JWT. Keep it in memory only, never in localStorage (ADR-0004).
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          description: Seconds until the access token expires (900 by default)
+          examples: [900]
+    Role:
+      type: string
+      enum: [CUSTOMER, ORGANIZER, ADMIN]
+    User:
+      type: object
+      required: [id, email, displayName, roles, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        roles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Role'
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 in UTC, with a trailing Z
+    UserPage:
+      type: object
+      required: [items, page, size, totalItems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 50
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
+    SetRolesRequest:
+      type: object
+      required: [roles]
+      additionalProperties: false
+      properties:
+        roles:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Role'
+    JsonWebKeySet:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            required: [kty, kid, use, alg]
+            properties:
+              kty:
+                type: string
+                examples: [RSA]
+              kid:
+                type: string
+              use:
+                type: string
+                enum: [sig]
+              alg:
+                type: string
+                examples: [RS256]
+              n:
+                type: string
+              e:
+                type: string
+
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details with our stable machine-readable code (ADR-0009, part B)
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: string
+          description: Stable identifier. Clients switch on this, never on title or detail text.
+          examples: [INVALID_REQUEST]
+        detail:
+          type: string
+        instance:
+          type: string
+        correlationId:
+          type: string
+          format: uuid
+        errors:
+          type: array
+          description: Present on validation failures (field and problem)
+          items:
+            type: object
+            required: [field, problem]
+            properties:
+              field:
+                type: string
+              problem:
+                type: string
+
+  responses:
+    InvalidRequest:
+      description: Invalid input. Code INVALID_REQUEST.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthenticated:
+      description: Missing, expired or invalid access token. Code UNAUTHENTICATED. No reason is given.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: The signed-in user may not do this. Code FORBIDDEN. No hint about which role would work.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Rate limit exceeded. Code RATE_LIMITED.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: Unexpected server error. Code INTERNAL_ERROR. No internal details are exposed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unavailable:
+      description: Service or upstream temporarily unavailable. Code UPSTREAM_UNAVAILABLE.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

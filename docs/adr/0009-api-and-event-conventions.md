@@ -192,3 +192,7 @@ Every event on RabbitMQ (ADR-0003) is a JSON message with this envelope:
 - Charter v1.0: FR-4, FR-10, FR-11, NFR-6
 - ADR-0002 (rules 4, 8), ADR-0003 (rules 2, 5, 6), ADR-0004 (Related decisions), ADR-0012 (Part B: taking a hold, idempotency key rule)
 - RFC 9457, "Problem Details for HTTP APIs" (the standard that replaced RFC 7807)
+
+## Clarifications
+
+- **2026-11-14, idempotency and anonymous requests.** The `Idempotency-Key` rule applies to create-style requests made by a signed-in user, because the key is stored per user. Registration, login, refresh and logout are exempt: registration is anonymous and is already protected by the unique email, and the other three do not create a business record. A retry after a lost response to a registration gets 409 `EMAIL_ALREADY_REGISTERED`, which the web app treats as "log in instead".

@@ -151,3 +151,8 @@ Security matters here more than almost anywhere else in the project: this is whe
 
 - Charter v1.0: FR-1, FR-2, NFR-6, NFR-7, section 8
 - ADR-0002 (rule 9: internal endpoints are not exposed through the gateway), ADR-0010 (Consequences: token handling deferred to this ADR), ADR-0003 (event transport)
+
+## Clarifications
+
+- **2026-11-14, public key endpoint.** Identity serves its public keys at `/.well-known/jwks.json` on its own application port. The endpoint needs no token, because the keys are public and must be readable before any token can be validated; this is the one exception to "internal endpoints need a service token". The gateway does not route it, so it is reachable only inside the container network. The contract is `contracts/identity.openapi.yaml`.
+- **2026-11-14, registration and email.** Registering an email that already exists returns 409 `EMAIL_ALREADY_REGISTERED`. The MVP has no email verification, so a neutral answer is not possible without confusing real users. This lets a caller test whether an email is registered; it is limited by the gateway rate limit on `/auth/**`. Login errors stay neutral, as written above.
