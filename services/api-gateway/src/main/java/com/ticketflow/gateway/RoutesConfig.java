@@ -29,9 +29,24 @@ class RoutesConfig {
     }
 
     /**
+     * The signed-in user's own data and the Admin user management. The gateway checks that a valid token is
+     * present (BearerTokenFilter); Identity checks the token again and decides about the Admin role.
+     */
+    @Bean
+    RouterFunction<ServerResponse> identityUserRoutes(
+            @Value("${ticketflow.gateway.identity-uri}") String identityUri) {
+        return route("identity-users")
+                .GET("/api/v1/users", http())
+                .GET("/api/v1/users/me", http())
+                .PUT("/api/v1/users/{userId}/roles", http())
+                .before(uri(identityUri))
+                .build();
+    }
+
+    /**
      * Registration, login, refresh and logout go to the Identity service (contracts/identity.openapi.yaml).
      * The Cookie, Origin and X-TicketFlow-Client request headers and the Set-Cookie response header
-     * pass through unchanged: the refresh cookie belongs to Identity. Nothing else of Identity is routed yet.
+     * pass through unchanged: the refresh cookie belongs to Identity. The public keys path is never routed.
      */
     @Bean
     RouterFunction<ServerResponse> identityAuthRoutes(
