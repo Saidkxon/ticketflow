@@ -27,4 +27,33 @@ id=3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50
 contains "web: correlation ID comes back" "x-correlation-id: $id" "$(curl -s -D - -o /dev/null -H "X-Correlation-ID: $id" "$WEB/api/v1/events" | tr 'A-Z' 'a-z')"
 check "health is not on the application port" 404 "$(curl -s -o /dev/null -w '%{http_code}' "$GATEWAY/actuator/health")"
 
+# Sign-in through the web origin (ADR-0004, ADR-0013): register, log in, refresh, log out.
+# The cookie is sent by hand, because curl does not send a Secure cookie over plain http.
+ORIGIN="$WEB"
+email="smoke-$(date +%s)-$RANDOM@example.com"
+register_json="{\"email\":\"$email\",\"password\":\"smoke test password 1\",\"displayName\":\"Smoke Test\"}"
+login_json="{\"email\":\"$email\",\"password\":\"smoke test password 1\"}"
+auth() { # path [extra curl args...]: POST to the auth API as the web app would, with headers shown
+  path="$1"; shift
+  curl -s -D - -X POST -H "Origin: $ORIGIN" -H 'X-TicketFlow-Client: web' -H 'Content-Type: application/json' "$@" "$WEB/api/v1/auth/$path" | tr -d '\r'
+}
+cookie_of() { printf '%s\n' "$1" | grep -i '^set-cookie: refresh_token=' | sed 's/^[^=]*=//; s/;.*//'; }
+status_of() { printf '%s\n' "$1" | head -1 | cut -d' ' -f2; }
+
+registered="$(auth register -d "$register_json")"
+check "auth: register" 201 "$(status_of "$registered")"
+login="$(auth login -d "$login_json")"
+check "auth: login" 200 "$(status_of "$login")"
+cookie_line="$(printf '%s\n' "$login" | grep -i '^set-cookie:' | tr 'A-Z' 'a-z')"
+contains "auth: login cookie is SameSite=Strict" 'samesite=strict' "$cookie_line"
+contains "auth: login cookie is HttpOnly" 'httponly' "$cookie_line"
+contains "auth: login returns an access token" '"accessToken"' "$login"
+first="$(cookie_of "$login")"
+refreshed="$(auth refresh -H "Cookie: refresh_token=$first")"
+check "auth: refresh" 200 "$(status_of "$refreshed")"
+second="$(cookie_of "$refreshed")"
+check "auth: refresh rotates the token" yes "$([ -n "$second" ] && [ "$second" != "$first" ] && echo yes || echo no)"
+check "auth: logout" 204 "$(status_of "$(auth logout -H "Cookie: refresh_token=$second")")"
+check "auth: refresh after logout is refused" 401 "$(status_of "$(auth refresh -H "Cookie: refresh_token=$second")")"
+
 exit $failed

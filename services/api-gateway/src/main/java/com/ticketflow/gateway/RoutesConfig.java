@@ -13,7 +13,7 @@ import org.springframework.web.servlet.function.ServerResponse;
 /**
  * The routing table (ADR-0013). Only paths listed here reach a service. Everything else,
  * including every /internal/** path, gets a 404 from the gateway. Payment and Notification
- * have no public routes at all.
+ * have no public routes at all. Limits on rate and body size are applied before routing (package limits).
  */
 @Configuration(proxyBeanMethods = false)
 class RoutesConfig {
@@ -25,6 +25,23 @@ class RoutesConfig {
         return route("catalog-events")
                 .GET("/api/v1/events/**", http())
                 .before(uri(catalogUri))
+                .build();
+    }
+
+    /**
+     * Registration, login, refresh and logout go to the Identity service (contracts/identity.openapi.yaml).
+     * The Cookie, Origin and X-TicketFlow-Client request headers and the Set-Cookie response header
+     * pass through unchanged: the refresh cookie belongs to Identity. Nothing else of Identity is routed yet.
+     */
+    @Bean
+    RouterFunction<ServerResponse> identityAuthRoutes(
+            @Value("${ticketflow.gateway.identity-uri}") String identityUri) {
+        return route("identity-auth")
+                .POST("/api/v1/auth/register", http())
+                .POST("/api/v1/auth/login", http())
+                .POST("/api/v1/auth/refresh", http())
+                .POST("/api/v1/auth/logout", http())
+                .before(uri(identityUri))
                 .build();
     }
 }
