@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | **APPROVED v1.0** (instructor sign-off, 2026-11-01) |
-| **Phase** | 0: Discovery (closed 2026-11-01); Phase 1: Architecture in progress |
+| **Phase** | Phases 0-3 and 4a (Identity) closed; Phase 4b: Booking in progress |
 | **Owner** | Saidafzal (instructor / product owner) |
 | **Architect** | Claude (Senior Architect, reviewer of all changes) |
 | **Name** | TicketFlow (confirmed) |
@@ -16,6 +16,7 @@
 | 0.2 | Web UI moved **into scope**; seats modeled as **specific seats**; name confirmed; requirements, risks, ADR backlog and phase plan updated |
 | 1.0 | Approved by instructor; frontend stack delegated to the architect (ADR-010); Phase 0 closed |
 | 1.1 | Section 10 now points to the ADR index (the backlog grew from 12 to 13 ADRs: API gateway added as ADR-0013); phase 1 row updated; no scope change |
+| 1.2 | Status brought up to date (Phases 0-3 and 4a done); phase plan re-baselined after Phase 3 and 4a; a UI/UX design pass added between 4c and 5; no scope change |
 
 ---
 
@@ -161,9 +162,10 @@ The decision backlog that this section used to list is now the ADR index: [docs/
 | 4a | Identity + Catalog, with login, event browsing and organizer screens | ~4-5 weeks |
 | 4b | Booking: seat model, holds, expiry, interactive seat map | ~4-5 weeks |
 | 4c | Payment + Notification, completing the end-to-end flow | ~3 weeks |
+| UX | UI/UX design pass over all screens (agreed after Booking screens exist): design system, layout, accessibility, phone widths | ~1-2 weeks |
 | 5 | Hardening, load tests, security review, UI polish, production deployment | 2-3 weeks |
 
-Realistic total: **about 5-6 months** at the stated pace. Estimates will be re-baselined after Phase 3.
+Realistic total: **about 5-6 months** at the stated pace. Re-baselined 2026-11-15 after Phase 4a: the pace so far holds, and the remaining work is estimated at about 30-35 pull requests (my estimate, to be checked again after 4b).
 
 ## 12. Definition of Done (applies to every PR from Phase 2 onward)
 
