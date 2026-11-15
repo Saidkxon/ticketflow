@@ -9,8 +9,8 @@ Built as independently deployable **microservices** (Java, Spring Boot), each ow
 | | |
 |---|---|
 | Charter | **v1.0 approved** (2026-11-01) |
-| Current phase | **Phase 1: Architecture** |
-| Code | None yet, by design |
+| Current phase | **Phase 4b: Booking** (Phases 0-3 and 4a Identity and Catalog are done) |
+| Code | Gateway, Catalog and Identity services, web app (sign-in, event list), contracts, Docker Compose deployment |
 
 ## Documentation
 
@@ -20,7 +20,7 @@ Built as independently deployable **microservices** (Java, Spring Boot), each ow
 | [System context and containers](docs/architecture/01-system-context-and-containers.md) | C4 diagrams, component responsibilities, preliminary booking flow |
 | [Architecture decision records](docs/adr/README.md) | Index of ADRs and their status |
 
-## Planned repository layout
+## Repository layout
 
 Decided in [ADR-001](docs/adr/0001-monorepo-layout.md):
 
@@ -34,7 +34,7 @@ ticketflow/
   .github/       CI workflows, PR template, CODEOWNERS
 ```
 
-Only `docs/` exists today. Other folders are created in Phase 2 and 3.
+`services/` holds the gateway, Catalog and Identity today; Booking, Payment and Notification arrive in Phases 4b and 4c.
 
 ## First-time repository setup (instructor action)
 

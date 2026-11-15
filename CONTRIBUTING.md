@@ -36,6 +36,12 @@ Examples:
 - No service reads another service's database (NFR-2).
 - A service never calls another service except as ADR-0002 allows.
 
+## Before you push
+
+- Run `bash scripts/check-docs.sh` when you changed anything under `docs/` or `contracts/`.
+- For Java changes, run `./mvnw verify` in the service folder. Stop that service in Docker first (`docker compose -f deploy/compose.yaml --profile app stop <service>`): on Windows a running process can keep a file open and make the build fail.
+- For changes that affect running containers, rebuild the stack and run `bash scripts/smoke-test.sh`.
+
 ## Review
 
 The architect reviews the pushed branch against `main` before approving. Expect to be asked to explain any line.
