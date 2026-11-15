@@ -6,6 +6,7 @@ import com.ticketflow.identity.auth.TooManyAttemptsException;
 import com.ticketflow.identity.sessions.InvalidRefreshTokenException;
 import com.ticketflow.identity.sessions.RefreshCookies;
 import com.ticketflow.identity.sessions.RequestOriginNotAllowedException;
+import com.ticketflow.identity.users.TokenUserNotFoundException;
 import java.net.URI;
 import java.util.Locale;
 import org.slf4j.Logger;
@@ -98,6 +99,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Request origin not allowed");
         enrich(problem, "REQUEST_ORIGIN_NOT_ALLOWED");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(TokenUserNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleTokenUserNotFound(TokenUserNotFoundException ex) {
+        // A valid token for a user that no longer exists: the same plain answer as any other bad credential.
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, "Authentication is required.");
+        problem.setTitle("Unauthenticated");
+        enrich(problem, "UNAUTHENTICATED");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
     }
 
     @ExceptionHandler(Exception.class)

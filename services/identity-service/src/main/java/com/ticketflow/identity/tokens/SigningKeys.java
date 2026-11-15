@@ -107,6 +107,11 @@ public final class SigningKeys {
         return new ImmutableJWKSet<>(new JWKSet(List.<JWK>copyOf(keys.values())));
     }
 
+    /** The public half of every key, for checking tokens that this service receives. */
+    JWKSource<SecurityContext> verificationSource() {
+        return new ImmutableJWKSet<>(new JWKSet(new ArrayList<JWK>(keys.values())).toPublicJWKSet());
+    }
+
     /** The public half of every key, as a JSON Web Key Set (RFC 7517). */
     public Map<String, Object> publicJwks() {
         return publicJwks;

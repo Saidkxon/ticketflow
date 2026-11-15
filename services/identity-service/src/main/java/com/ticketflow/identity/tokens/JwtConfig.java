@@ -21,6 +21,12 @@ class JwtConfig {
         return new NimbusJwtEncoder(keys.encoderSource());
     }
 
+    /** Checks the tokens that come in, against the same keys that sign the tokens that go out. */
+    @Bean
+    AccessTokenVerifier accessTokenVerifier(SigningKeys keys, JwtProperties properties) {
+        return new AccessTokenVerifier(keys.verificationSource(), properties.issuer(), properties.audience());
+    }
+
     /** One clock for the service, so tests can replace it. */
     @Bean
     Clock clock() {
