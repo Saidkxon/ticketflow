@@ -1,5 +1,6 @@
 package com.ticketflow.identity.security;
 
+import com.ticketflow.identity.tokens.AccessTokenVerifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -12,10 +13,11 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 /**
  * Security rules of the Identity service (ADR-0004). Everything is closed unless listed here.
- * Public so far: registration, login, refresh, logout and the public keys. The token checks arrive in a later pull request.
+ * Public: registration, login, refresh, logout and the public keys. Everything else needs a valid access token.
  * Refresh and logout are open to the security chain because they stand on the refresh cookie, and are guarded separately (BrowserRequestGuard).
  */
 @Configuration(proxyBeanMethods = false)
@@ -37,8 +39,11 @@ class SecurityConfig {
     @Bean
     @Order(2)
     SecurityFilterChain apiChain(HttpSecurity http, ProblemAuthenticationEntryPoint entryPoint,
-            ProblemAccessDeniedHandler accessDeniedHandler) throws Exception {
+            ProblemAccessDeniedHandler accessDeniedHandler, AccessTokenVerifier verifier) throws Exception {
         http
+                // Reads and checks "Authorization: Bearer ..." before the access rules below are applied.
+                // The filter is created here, not as a bean, so it only runs inside this chain.
+                .addFilterBefore(new BearerTokenFilter(verifier), AuthorizationFilter.class)
                 // No sessions and no browser login pages: every request stands on its own.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(AbstractHttpConfigurer::disable)
