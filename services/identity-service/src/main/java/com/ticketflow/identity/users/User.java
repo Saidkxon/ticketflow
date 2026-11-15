@@ -82,6 +82,12 @@ public class User {
         return createdAt;
     }
 
+    /** Replaces all roles. Callers decide the rules (for example, that CUSTOMER stays). */
+    public void replaceRoles(Set<Role> newRoles) {
+        this.roles.clear();
+        this.roles.addAll(newRoles);
+    }
+
     public Set<Role> getRoles() {
         return Collections.unmodifiableSet(roles);
     }

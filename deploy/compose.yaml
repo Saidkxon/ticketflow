@@ -66,6 +66,8 @@ services:
       IDENTITY_JWT_KEY_DIRECTORY: /run/keys
       IDENTITY_JWT_SIGNING_KEY_ID: ${IDENTITY_JWT_SIGNING_KEY_ID:-dev-1}
       # The web app origin(s) allowed to call refresh and logout (ADR-0004).
+      # Email of the user who becomes the first Admin at startup (see deploy/README.md). Empty: nobody.
+      IDENTITY_BOOTSTRAP_ADMIN_EMAIL: ${IDENTITY_BOOTSTRAP_ADMIN_EMAIL:-}
       IDENTITY_ALLOWED_ORIGINS: ${IDENTITY_ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-18090}}
     volumes:
       - ./keys:/run/keys:ro

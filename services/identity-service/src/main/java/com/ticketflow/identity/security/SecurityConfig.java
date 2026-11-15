@@ -60,6 +60,10 @@ class SecurityConfig {
                                 "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
                         // Public keys; the gateway does not route this path (ADR-0004).
                         .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
+                        // Admin only, decided here and again by nothing else: a missing role is a plain 403.
+                        // Everything under /users except /me is Admin-only, so a future path is closed by default.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users/me").authenticated()
+                        .requestMatchers("/api/v1/users", "/api/v1/users/**").hasRole("ADMIN")
                         .anyRequest().authenticated());
         return http.build();
     }
