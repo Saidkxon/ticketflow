@@ -7,6 +7,8 @@ import com.ticketflow.identity.sessions.InvalidRefreshTokenException;
 import com.ticketflow.identity.sessions.RefreshCookies;
 import com.ticketflow.identity.sessions.RequestOriginNotAllowedException;
 import com.ticketflow.identity.users.TokenUserNotFoundException;
+import com.ticketflow.identity.users.UserNotFoundException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import java.net.URI;
 import java.util.Locale;
 import org.slf4j.Logger;
@@ -111,6 +113,24 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
     }
 
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleUserNotFound(UserNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No such user.");
+        problem.setTitle("User not found");
+        enrich(problem, "USER_NOT_FOUND");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetail> handleConflict(ObjectOptimisticLockingFailureException ex) {
+        // Two changes to the same user at the same moment: the second one is told to try again.
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, "The user was changed by someone else. Try again.");
+        problem.setTitle("Conflict");
+        enrich(problem, "CONFLICT");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(Exception ex) {
         log.error("unhandled exception", ex);
@@ -149,6 +169,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return switch (status) {
             case 400 -> "INVALID_REQUEST";
             case 404 -> "NOT_FOUND";
+            case 409 -> "CONFLICT";
             case 429 -> "RATE_LIMITED";
             case 405 -> "METHOD_NOT_ALLOWED";
             case 406 -> "NOT_ACCEPTABLE";

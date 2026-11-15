@@ -45,6 +45,17 @@ The Identity service signs access tokens (JWT) with an RSA key that it reads fro
 - **Development and CI:** `bash scripts/generate-dev-key.sh` creates `deploy/keys/dev-1.pem`. The `deploy/keys/` folder is git-ignored and excluded from images. Never use a development key anywhere else.
 - **Rotating a key:** add the new file (for example `2027-01.pem`), set `IDENTITY_JWT_SIGNING_KEY_ID` to its ID, and restart Identity. Keep the old file for at least the access token lifetime (15 minutes) so tokens it signed stay valid, then delete it. The production procedure is written with the deployment runbook (ADR-0014).
 
+## The first Admin
+
+Nobody becomes an Admin by registering. The first Admin is made like this:
+
+1. Register the account normally (through the web app or `POST /api/v1/auth/register`). If the answer is 409, the email is already taken by someone else: use another one.
+2. Put the same email in `deploy/.env`: `IDENTITY_BOOTSTRAP_ADMIN_EMAIL=you@example.com`.
+3. Restart Identity: `docker compose -f deploy/compose.yaml --profile app up -d identity`. The log shows `bootstrap admin: the configured user is an Admin now`.
+4. Log in again (an old token does not have the role). From then on this Admin gives roles to others with `PUT /api/v1/users/{id}/roles`.
+
+The setting does nothing when the user is already an Admin, so it can stay. If the log says no user is registered with that email, register first and restart.
+
 ## Local ports
 
 Services use high ports because Windows reserves some low ranges (for example 8081-8180, and the ranges change after restarts). Each service has an application port and a separate health port that the gateway never routes (ADR-0008, ADR-0013).

@@ -18,7 +18,7 @@ info:
 
     **Error codes used by this API:** `INVALID_REQUEST`, `EMAIL_ALREADY_REGISTERED`,
     `INVALID_CREDENTIALS`, `INVALID_REFRESH_TOKEN`, `REQUEST_ORIGIN_NOT_ALLOWED`, `UNAUTHENTICATED`,
-    `FORBIDDEN`, `USER_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
+    `FORBIDDEN`, `USER_NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
 
     **No idempotency key.** ADR-0009 requires `Idempotency-Key` on create-style requests made by a
     signed-in user. Registration is anonymous and already protected by the unique email, so it is
@@ -284,7 +284,7 @@ paths:
       description: |
         Needs the role `ADMIN`. `CUSTOMER` is always kept: the new role set always includes it,
         whether or not it is in the request. An Admin cannot remove their own `ADMIN` role, so the
-        system cannot end up without an Admin. A role change reaches the user's token only when
+        system cannot end up without an Admin (the request is refused with 400 `INVALID_REQUEST`, field `roles`). A role change reaches the user's token only when
         it is next refreshed, up to 15 minutes later (ADR-0004).
       security:
         - bearerAuth: []
@@ -319,6 +319,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           description: No such user. Code USER_NOT_FOUND.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The user was changed by someone else at the same moment. Code CONFLICT. Try again.
           content:
             application/problem+json:
               schema:
