@@ -15,6 +15,12 @@ server:
 ticketflow:
   gateway:
     catalog-uri: ${CATALOG_URI:http://localhost:18081}
+    identity-uri: ${IDENTITY_URI:http://localhost:18082}
+    # Request limits (ADR-0013, rules G3 and G7): starting points, to tune from measurements.
+    limits:
+      auth-per-minute: ${GATEWAY_AUTH_LIMIT_PER_MINUTE:10}
+      default-per-minute: ${GATEWAY_DEFAULT_LIMIT_PER_MINUTE:100}
+      max-body-size: 16KB
 
 # Health endpoints live on their own port, which is never routed (ADR-0008, ADR-0013).
 # The gateway has no database, so readiness is only its own state.

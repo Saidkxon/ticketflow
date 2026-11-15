@@ -88,8 +88,14 @@ services:
     restart: unless-stopped
     environment:
       CATALOG_URI: http://catalog:18081
+      IDENTITY_URI: http://identity:18082
+      # Request limits per client address and minute (ADR-0013, rule G3). Raise them in deploy/.env when testing a lot.
+      GATEWAY_AUTH_LIMIT_PER_MINUTE: ${GATEWAY_AUTH_LIMIT_PER_MINUTE:-10}
+      GATEWAY_DEFAULT_LIMIT_PER_MINUTE: ${GATEWAY_DEFAULT_LIMIT_PER_MINUTE:-100}
     depends_on:
       catalog:
+        condition: service_healthy
+      identity:
         condition: service_healthy
     ports:
       # Bound to this computer only, never to the network.
