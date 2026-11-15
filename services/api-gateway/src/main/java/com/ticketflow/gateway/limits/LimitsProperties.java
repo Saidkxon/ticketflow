@@ -9,11 +9,13 @@ import org.springframework.util.unit.DataSize;
  *
  * @param authPerMinute    login, registration, refresh and logout, per client address
  * @param defaultPerMinute every other route, per client address
+ * @param userPerMinute    requests with a valid access token, per user (on top of the address limit)
  * @param maxBodySize      largest request body the gateway accepts
  */
 @ConfigurationProperties("ticketflow.gateway.limits")
 public record LimitsProperties(
         @DefaultValue("10") int authPerMinute,
         @DefaultValue("100") int defaultPerMinute,
+        @DefaultValue("100") int userPerMinute,
         @DefaultValue("16KB") DataSize maxBodySize) {
 }

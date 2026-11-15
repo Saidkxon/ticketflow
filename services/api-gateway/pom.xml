@@ -28,6 +28,12 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
+    <!-- Checks access tokens against Identity's public keys (ADR-0004). It brings the Nimbus JWT library;
+         the version is managed by Spring Boot, as in the Identity service. -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

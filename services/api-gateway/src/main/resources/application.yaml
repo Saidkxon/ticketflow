@@ -16,10 +16,15 @@ ticketflow:
   gateway:
     catalog-uri: ${CATALOG_URI:http://localhost:18081}
     identity-uri: ${IDENTITY_URI:http://localhost:18082}
+    # How access tokens are checked (ADR-0004, Part B). The keys come from Identity's address inside the
+    # container network; the path is never routed to the outside.
+    jwt:
+      jwks-uri: ${IDENTITY_URI:http://localhost:18082}/.well-known/jwks.json
     # Request limits (ADR-0013, rules G3 and G7): starting points, to tune from measurements.
     limits:
       auth-per-minute: ${GATEWAY_AUTH_LIMIT_PER_MINUTE:10}
       default-per-minute: ${GATEWAY_DEFAULT_LIMIT_PER_MINUTE:100}
+      user-per-minute: ${GATEWAY_USER_LIMIT_PER_MINUTE:100}
       max-body-size: 16KB
 
 # Health endpoints live on their own port, which is never routed (ADR-0008, ADR-0013).

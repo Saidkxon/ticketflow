@@ -105,7 +105,7 @@ class AuthRoutingTest {
         assertThat(post("/api/v1/auth/not-real", "{}", "10.2.0.4").statusCode()).isEqualTo(404);
         assertThat(get("/api/v1/auth/login", "10.2.0.4").statusCode()).isIn(404, 405);
         assertThat(get("/.well-known/jwks.json", "10.2.0.4").statusCode()).isEqualTo(404);
-        assertThat(get("/api/v1/users/me", "10.2.0.4").statusCode()).isEqualTo(404);
+        assertThat(get("/api/v1/admin/anything", "10.2.0.4").statusCode()).isEqualTo(404);
         assertThat(receivedUri).isNull();
     }
 
