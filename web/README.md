@@ -21,7 +21,18 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. The page lists the published events from `GET /api/v1/events`.
+Open http://localhost:5173. The page lists the published events from `GET /api/v1/events`. To sign in and register, Identity must run too (`java -jar services/identity-service/target/identity-service-0.1.0-SNAPSHOT.jar --spring.profiles.active=local`, with a development signing key, see [deploy/README.md](../deploy/README.md)), and the gateway must be started after it. The easiest way is the whole stack in containers, with the web app on http://localhost:18090.
+
+## Sign in
+
+Pages: `/login`, `/register`, and `/account` (only for a signed-in user; anybody else is sent to `/login` and brought back afterwards). The rules of ADR-0004 in the browser:
+
+- The access token is kept **in memory only** (never localStorage or sessionStorage), so a page reload loses it. The HttpOnly refresh cookie then brings the session back: the app calls `POST /api/v1/auth/refresh` once when it loads.
+- **Refresh runs in exactly one place** (`src/auth/sessionStore.ts`). The server treats a refresh token used twice as theft and ends the whole session, so every caller shares the one refresh call that is in flight. Do not add another call to `/auth/refresh` anywhere else.
+- Calls that need a token go through `authorizedFetch`: on a 401 it refreshes once, retries once, and signs the user out if that fails too.
+- The app refreshes a minute before the access token expires. Any failed refresh ends the session.
+- The browser must accept the `Secure` refresh cookie. Chrome, Edge and Firefox accept it on `http://localhost`; Safari does not, and neither does an address like `http://192.168.x.x`. Use https or localhost.
+- The pages show messages for known error `code`s and a reference (the correlation ID) when the server gave one.
 
 ## Checks (the same ones CI runs)
 
@@ -34,7 +45,7 @@ npm run build
 
 ## API types
 
-The types in `src/api/catalog.schema.d.ts` are generated from [contracts/catalog.openapi.yaml](../contracts/catalog.openapi.yaml), so the app cannot silently drift from the contract (ADR-0009, part E). After a contract change, run:
+The types in `src/api/catalog.schema.d.ts` and `src/api/identity.schema.d.ts` are generated from [contracts/catalog.openapi.yaml](../contracts/catalog.openapi.yaml) and [contracts/identity.openapi.yaml](../contracts/identity.openapi.yaml), so the app cannot silently drift from the contract (ADR-0009, part E). After a contract change, run:
 
 ```
 npm run generate:api

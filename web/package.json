@@ -12,12 +12,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "generate:api": "openapi-typescript ../contracts/catalog.openapi.yaml -o src/api/catalog.schema.d.ts"
+    "generate:api": "openapi-typescript ../contracts/catalog.openapi.yaml -o src/api/catalog.schema.d.ts && openapi-typescript ../contracts/identity.openapi.yaml -o src/api/identity.schema.d.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "5.107.1",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "react-router": "7.18.5"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
