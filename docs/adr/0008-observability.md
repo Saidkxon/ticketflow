@@ -173,3 +173,7 @@ Until alerting exists, dashboards are checked by a person during load tests and 
 - Spring blog, "OpenTelemetry with Spring Boot" (2025-11-18): https://spring.io/blog/2025/11/18/opentelemetry-with-spring-boot/ (checked 2026-11-08)
 - Spring blog, "Structured logging in Spring Boot 3.4" (2024-08-23): https://spring.io/blog/2024/08/23/structured-logging-in-spring-boot-3-4 (checked 2026-11-08)
 - Grafana `docker-otel-lgtm` documentation: https://pkg.go.dev/github.com/grafana/docker-otel-lgtm (checked 2026-11-08)
+
+## Clarifications
+
+- **2026-11-15, structured logging verified on 4.1.** With the `json` profile active, the Identity container writes one ECS 8.11 JSON object per line to the console, with `@timestamp`, `log.level`, `log.logger`, `service.name`, `service.version`, the message and the `correlationId` from the MDC. This was checked on real container output (`docker compose logs identity`) for a failed login; the message did not contain the email or the password. The Catalog and Gateway services use the same configuration but their output was not inspected in this check.
