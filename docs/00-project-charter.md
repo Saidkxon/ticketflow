@@ -160,7 +160,7 @@ The decision backlog that this section used to list is now the ADR index: [docs/
 | 2 | Repo, branching rules, PR template, CI, code standards | ~1 week |
 | 3 | Walking skeleton: gateway, one service, DB, minimal web shell, CI, container; deployment decision | 2-3 weeks |
 | 4a | Identity + Catalog, with login, event browsing and organizer screens | ~4-5 weeks |
-| 4b | Booking: seat model, holds, expiry, interactive seat map | ~4-5 weeks |
+| 4b | Booking: seat model, holds, expiry, interactive seat map; includes the Catalog layout and organizer work ([plan](plans/phase-4b-booking.md)) | ~4-5 weeks |
 | 4c | Payment + Notification, completing the end-to-end flow | ~3 weeks |
 | UX | UI/UX design pass over all screens (agreed after Booking screens exist): design system, layout, accessibility, phone widths | ~1-2 weeks |
 | 5 | Hardening, load tests, security review, UI polish, production deployment | 2-3 weeks |
@@ -198,3 +198,4 @@ Realistic total: **about 5-6 months** at the stated pace. Re-baselined 2026-11-1
 | D8 | Charter v1.0 approved | Instructor | 2026-11-01 |
 | D9 | Frontend technology decision delegated to the architect; recorded in ADR-010 | Instructor | 2026-11-01 |
 | D10 | Deployment target: one VPS with Docker Compose (ADR-0014) | Instructor | 2026-11-14 |
+| D11 | Phase 4b plan approved: [15 PRs in three parts](plans/phase-4b-booking.md); layout per event, organizers assigned by an Admin, SVG seat map, no Redis | Instructor | 2026-11-16 |
