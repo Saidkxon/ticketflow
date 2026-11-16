@@ -19,6 +19,7 @@ Built as independently deployable **microservices** (Java, Spring Boot), each ow
 | [Project charter](docs/00-project-charter.md) | Vision, scope, requirements, risks, phase plan, decisions log |
 | [System context and containers](docs/architecture/01-system-context-and-containers.md) | C4 diagrams, component responsibilities, preliminary booking flow |
 | [Architecture decision records](docs/adr/README.md) | Index of ADRs and their status |
+| [Phase 4b plan](docs/plans/phase-4b-booking.md) | The 15 pull requests that build Booking and the seat map |
 
 ## Repository layout
 
