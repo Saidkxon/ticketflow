@@ -76,6 +76,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/mine/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one of my events, draft or published
+         * @description Needs an access token with the ORGANIZER role. An event of another organizer looks exactly like a
+         *     missing one (404). The ETag is the version to send back in If-Match when changing the event.
+         */
+        get: operations["getMyEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/mine/{eventId}/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the venue layout of one of my events
+         * @description Needs an access token with the ORGANIZER role. An event without a saved layout has an empty one
+         *     (no tiers, no sections, zero seats, and a null currency). The ETag is the event version to send back in
+         *     If-Match when saving the layout.
+         */
+        get: operations["getMyEventLayout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventId}/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save the venue layout of a draft event
+         * @description Needs an access token with the ORGANIZER role, and the event must be the caller's own draft. Replaces the
+         *     whole layout: the seats are generated again, with new IDs, from the sections described in the body.
+         *     A section is a block of lettered rows (A, B, C, ...) with the same number of seats in each row and one
+         *     price tier. Prices are integers in the smallest unit of the event currency.
+         *
+         *     The If-Match header must carry the version the caller last saw, as for editing the event itself (428 when
+         *     missing, 412 when old). Saving a layout counts as a change of the event: the version goes up and the new
+         *     one is returned as the ETag. A published event keeps its layout (409).
+         *
+         *     Limits: at most 10 tiers, 30 sections, 26 rows per section, 100 seats per row and 5,000 seats in total.
+         */
+        put: operations["saveEventLayout"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -136,6 +208,56 @@ export interface components {
             size: number;
             /** Format: int64 */
             totalItems: number;
+        };
+        /**
+         * @description The venue layout of a draft event. Names are trimmed, must not contain control characters, and tier names
+         *     and section names are each unique without regard to case. Any other field is rejected with 400.
+         */
+        LayoutRequest: {
+            /** @enum {string} */
+            currency: "UZS" | "USD" | "EUR";
+            priceTiers: components["schemas"]["PriceTierInput"][];
+            sections: components["schemas"]["SectionInput"][];
+        };
+        PriceTierInput: {
+            name: string;
+            /**
+             * Format: int64
+             * @description Price of one seat in the smallest unit of the currency (never a fraction)
+             */
+            priceMinor: number;
+        };
+        SectionInput: {
+            name: string;
+            /** @description The name of one of the price tiers */
+            tier: string;
+            /** @description Number of rows, lettered A, B, C, ... */
+            rows: number;
+            seatsPerRow: number;
+        };
+        LayoutDetail: {
+            /** @description Null until a layout has been saved */
+            currency: string | null;
+            priceTiers: components["schemas"]["PriceTierView"][];
+            sections: components["schemas"]["SectionView"][];
+            totalSeats: number;
+        };
+        PriceTierView: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: int64 */
+            priceMinor: number;
+        };
+        SectionView: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description The name of the section's price tier */
+            tier: string;
+            rows: number;
+            seatsPerRow: number;
+            seatCount: number;
         };
         /** @description RFC 9457 Problem Details with our stable machine-readable code (ADR-0009, part B) */
         Problem: {
@@ -227,6 +349,7 @@ export interface components {
         };
     };
     parameters: {
+        EventId: string;
         /** @description Page number, starting at 0 */
         Page: number;
         /** @description Items per page (maximum 50) */
@@ -373,6 +496,133 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description The event is published and can no longer be edited. Code EVENT_NOT_EDITABLE. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The event was changed by someone else since the caller loaded it. Code PRECONDITION_FAILED. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The If-Match header is missing. Code PRECONDITION_REQUIRED. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    getMyEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    getMyEventLayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The layout */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LayoutDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    saveEventLayout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The version being changed, as a quoted number, for example "3" */
+                "If-Match": string;
+            };
+            path: {
+                eventId: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LayoutRequest"];
+            };
+        };
+        responses: {
+            /** @description The layout was saved */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LayoutDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The event is published and keeps its layout. Code EVENT_NOT_EDITABLE. */
             409: {
                 headers: {
                     [name: string]: unknown;

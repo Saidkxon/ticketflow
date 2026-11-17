@@ -91,10 +91,11 @@ class BearerTokenFilter extends OncePerRequestFilter {
             }
         }
         // Under the events path everything except a plain read needs a token, so a new write is protected
-        // without anybody remembering to list it. "My events" is a read, but it is private.
+        // without anybody remembering to list it. The "mine" area (my events and their layouts) is read-only but
+        // private.
         if (path.equals(EVENTS) || path.startsWith(EVENTS + "/")) {
             boolean read = "GET".equals(method) || "HEAD".equals(method);
-            return !read || path.equals(MY_EVENTS);
+            return !read || path.equals(MY_EVENTS) || path.startsWith(MY_EVENTS + "/");
         }
         return false;
     }

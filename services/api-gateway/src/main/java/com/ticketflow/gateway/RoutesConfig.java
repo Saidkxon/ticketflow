@@ -30,6 +30,7 @@ class RoutesConfig {
                 .GET("/api/v1/events/**", http())
                 .POST("/api/v1/events", http())
                 .PUT("/api/v1/events/{eventId}", http())
+                .PUT("/api/v1/events/{eventId}/layout", http())
                 .before(uri(catalogUri))
                 .build();
     }

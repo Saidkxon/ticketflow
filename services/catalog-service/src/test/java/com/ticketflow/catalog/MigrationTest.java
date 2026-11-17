@@ -33,6 +33,21 @@ class MigrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void theLayoutTablesExistAndSeatsHaveTheirOwnIds() {
+        List<String> tables = jdbc.queryForList(
+                "select table_name from information_schema.tables "
+                        + "where table_name in ('price_tiers', 'sections', 'seats') order by table_name",
+                String.class);
+        List<String> seatColumns = jdbc.queryForList(
+                "select column_name from information_schema.columns "
+                        + "where table_name = 'seats' order by ordinal_position",
+                String.class);
+
+        assertThat(tables).containsExactly("price_tiers", "seats", "sections");
+        assertThat(seatColumns).containsExactly("id", "event_id", "section_id", "row_label", "seat_number");
+    }
+
+    @Test
     void eventsHaveTheOrganizerColumnsAndTheyAreRequired() {
         List<String> required = jdbc.queryForList(
                 "select column_name from information_schema.columns "

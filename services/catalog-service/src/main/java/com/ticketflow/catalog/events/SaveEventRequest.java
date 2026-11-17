@@ -36,7 +36,8 @@ public record SaveEventRequest(String title, Instant startsAt, String venueName,
         return new SaveEventRequest(cleanTitle, startsAt, cleanVenue, cleanCity);
     }
 
-    private static String text(String field, String value, int max, List<FieldProblem> problems) {
+    /** Trims a required text and records what is wrong with it; also used for the names in a layout. */
+    static String text(String field, String value, int max, List<FieldProblem> problems) {
         if (value == null) {
             problems.add(new FieldProblem(field, "is required"));
             return null;

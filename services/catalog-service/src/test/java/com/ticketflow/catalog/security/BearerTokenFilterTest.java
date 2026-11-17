@@ -49,6 +49,11 @@ class BearerTokenFilterTest {
         assertThat(BearerTokenFilter.needsOrganizer("GET", "/api/v1/events/" + UUID.randomUUID())).isFalse();
 
         assertThat(BearerTokenFilter.needsOrganizer("GET", "/api/v1/events/mine")).isTrue();
+        assertThat(BearerTokenFilter.needsOrganizer("GET", "/api/v1/events/mine/" + UUID.randomUUID())).isTrue();
+        assertThat(BearerTokenFilter.needsOrganizer("GET", "/api/v1/events/mine/" + UUID.randomUUID() + "/layout"))
+                .isTrue();
+        assertThat(BearerTokenFilter.needsOrganizer("PUT", "/api/v1/events/" + UUID.randomUUID() + "/layout"))
+                .isTrue();
         assertThat(BearerTokenFilter.needsOrganizer("POST", "/api/v1/events")).isTrue();
         assertThat(BearerTokenFilter.needsOrganizer("PUT", "/api/v1/events/" + UUID.randomUUID())).isTrue();
         assertThat(BearerTokenFilter.needsOrganizer("DELETE", "/api/v1/events/" + UUID.randomUUID())).isTrue();

@@ -6,8 +6,8 @@ info:
     Public API of the Event Catalog service, reached through the API gateway (ADR-0002, ADR-0013).
     This file is the source of truth: a change to behavior starts with a change here (ADR-0009, part E).
 
-    Scope today: the public event list, and an organizer creating and editing draft events. Venue layout,
-    publishing and search are added in later pull requests; additive changes do not create a new major
+    Scope today: the public event list, and an organizer creating and editing draft events and their venue
+    layout. Publishing and search are added in later pull requests; additive changes do not create a new major
     version (ADR-0009, part A).
 
     Reading the list is public. Everything else needs an access token with the ORGANIZER role
@@ -211,6 +211,163 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
 
+  /events/mine/{eventId}:
+    get:
+      tags: [organizer]
+      operationId: getMyEvent
+      summary: Read one of my events, draft or published
+      description: |
+        Needs an access token with the ORGANIZER role. An event of another organizer looks exactly like a
+        missing one (404). The ETag is the version to send back in If-Match when changing the event.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: The event
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventDetail'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /events/mine/{eventId}/layout:
+    get:
+      tags: [organizer]
+      operationId: getMyEventLayout
+      summary: Read the venue layout of one of my events
+      description: |
+        Needs an access token with the ORGANIZER role. An event without a saved layout has an empty one
+        (no tiers, no sections, zero seats, and a null currency). The ETag is the event version to send back in
+        If-Match when saving the layout.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: The layout
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LayoutDetail'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /events/{eventId}/layout:
+    put:
+      tags: [organizer]
+      operationId: saveEventLayout
+      summary: Save the venue layout of a draft event
+      description: |
+        Needs an access token with the ORGANIZER role, and the event must be the caller's own draft. Replaces the
+        whole layout: the seats are generated again, with new IDs, from the sections described in the body.
+        A section is a block of lettered rows (A, B, C, ...) with the same number of seats in each row and one
+        price tier. Prices are integers in the smallest unit of the event currency.
+
+        The If-Match header must carry the version the caller last saw, as for editing the event itself (428 when
+        missing, 412 when old). Saving a layout counts as a change of the event: the version goes up and the new
+        one is returned as the ETag. A published event keeps its layout (409).
+
+        Limits: at most 10 tiers, 30 sections, 26 rows per section, 100 seats per row and 5,000 seats in total.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - name: If-Match
+          in: header
+          required: true
+          description: The version being changed, as a quoted number, for example "3"
+          schema:
+            type: string
+            pattern: '^"[0-9]{1,18}"$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LayoutRequest'
+      responses:
+        '200':
+          description: The layout was saved
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LayoutDetail'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The event is published and keeps its layout. Code EVENT_NOT_EDITABLE.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '412':
+          description: The event was changed by someone else since the caller loaded it. Code PRECONDITION_FAILED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '428':
+          description: The If-Match header is missing. Code PRECONDITION_REQUIRED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -220,6 +377,13 @@ components:
       description: The access token from POST /auth/login or /auth/refresh (see the Identity contract).
 
   parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     Page:
       name: page
       in: query
@@ -356,6 +520,114 @@ components:
           type: integer
           format: int64
           minimum: 0
+
+    LayoutRequest:
+      type: object
+      description: |
+        The venue layout of a draft event. Names are trimmed, must not contain control characters, and tier names
+        and section names are each unique without regard to case. Any other field is rejected with 400.
+      required: [currency, priceTiers, sections]
+      additionalProperties: false
+      properties:
+        currency:
+          type: string
+          enum: [UZS, USD, EUR]
+        priceTiers:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/PriceTierInput'
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/SectionInput'
+    PriceTierInput:
+      type: object
+      required: [name, priceMinor]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        priceMinor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+          description: Price of one seat in the smallest unit of the currency (never a fraction)
+    SectionInput:
+      type: object
+      required: [name, tier, rows, seatsPerRow]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        tier:
+          type: string
+          description: The name of one of the price tiers
+        rows:
+          type: integer
+          minimum: 1
+          maximum: 26
+          description: Number of rows, lettered A, B, C, ...
+        seatsPerRow:
+          type: integer
+          minimum: 1
+          maximum: 100
+    LayoutDetail:
+      type: object
+      required: [currency, priceTiers, sections, totalSeats]
+      properties:
+        currency:
+          type: [string, 'null']
+          description: Null until a layout has been saved
+        priceTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriceTierView'
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/SectionView'
+        totalSeats:
+          type: integer
+          minimum: 0
+    PriceTierView:
+      type: object
+      required: [id, name, priceMinor]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        priceMinor:
+          type: integer
+          format: int64
+    SectionView:
+      type: object
+      required: [id, name, tier, rows, seatsPerRow, seatCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tier:
+          type: string
+          description: The name of the section's price tier
+        rows:
+          type: integer
+        seatsPerRow:
+          type: integer
+        seatCount:
+          type: integer
 
     Problem:
       type: object
