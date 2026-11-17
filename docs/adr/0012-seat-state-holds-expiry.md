@@ -149,3 +149,8 @@ UPDATE event_seat
 
 - Charter v1.0: FR-5 to FR-9, NFR-1, NFR-3, NFR-4, NFR-10
 - Architecture baseline: `docs/architecture/01-system-context-and-containers.md` (questions Q1 and Q2)
+
+## Clarifications
+
+- **2026-11-17, the layout as built in Catalog (Phase 4b, PR 2).** An organizer describes the layout of a draft event and Catalog generates the seats. A **price tier** has a name and a price in the smallest currency unit (ADR-0005); the **currency** (UZS, USD or EUR) belongs to the event. A **section** is a block of lettered rows (A, B, C, up to 26 rows) with the same number of seats in each row (up to 100, numbered from 1) and exactly one tier; a part of a hall that costs more is simply its own section. Limits: 10 tiers, 30 sections and 5,000 seats in total (NFR-10 asks for about 2,000). Saving a layout **replaces the whole layout** in one transaction: every seat gets a new random UUID, and this is harmless until the event is published, because the IDs only become the ones Booking stores at that moment. A save counts as a change of the event: it needs `If-Match`, raises the event version by one and returns the new ETag, so a stale editor is refused with 412 and two simultaneous saves cannot both win. The owner reads the layout under `/events/mine/{id}/layout`, which also works for drafts. Publishing, the public layout read and the snapshot for Booking come in PR 3; publishing will require a non-empty layout.
+

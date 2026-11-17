@@ -30,9 +30,18 @@ class EventService {
     EventDetail update(UUID ownerId, UUID id, long expectedVersion, SaveEventRequest request) {
         SaveEventRequest event = request.validated(clock.instant());
         if (!events.updateDraft(id, ownerId, expectedVersion, event)) {
-            throw whyNotUpdated(ownerId, id);
+            throw refusalFor(ownerId, id);
         }
         return events.findDetail(id).orElseThrow();
+    }
+
+    /** One event of this organizer, drafts included; somebody else's event looks missing. */
+    EventDetail getOwned(UUID ownerId, UUID id) {
+        EventRepository.EventState state = events.findState(id).orElse(null);
+        if (state == null || !state.ownerId().equals(ownerId)) {
+            throw ApiException.eventNotFound();
+        }
+        return events.findDetail(id).orElseThrow(ApiException::eventNotFound);
     }
 
     MyEventPage listMine(UUID ownerId, int page, int size) {
@@ -41,7 +50,7 @@ class EventService {
     }
 
     /** An event of somebody else looks exactly like a missing one, so the caller cannot find out that it exists. */
-    private ApiException whyNotUpdated(UUID ownerId, UUID id) {
+    ApiException refusalFor(UUID ownerId, UUID id) {
         EventRepository.EventState state = events.findState(id).orElse(null);
         if (state == null || !state.ownerId().equals(ownerId)) {
             return ApiException.eventNotFound();

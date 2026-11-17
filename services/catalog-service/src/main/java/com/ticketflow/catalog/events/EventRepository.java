@@ -88,6 +88,26 @@ class EventRepository {
                 .optional();
     }
 
+    /**
+     * The same compare-and-set as {@link #updateDraft}, for a layout change: it only succeeds for a draft of this
+     * owner that still has the version the caller saw, sets the currency, and returns the new version. The row
+     * stays locked until the end of the transaction, so the layout is replaced by one writer at a time.
+     */
+    Optional<Long> bumpVersionForLayout(UUID id, UUID ownerId, long expectedVersion, String currency) {
+        return jdbc.sql("""
+                        UPDATE events
+                           SET currency = :currency, updated_at = now(), version = version + 1
+                         WHERE id = :id AND owner_id = :owner AND version = :version AND published_at IS NULL
+                        RETURNING version
+                        """)
+                .param("id", id)
+                .param("owner", ownerId)
+                .param("version", expectedVersion)
+                .param("currency", currency)
+                .query(Long.class)
+                .optional();
+    }
+
     void insertDraft(UUID id, UUID ownerId, SaveEventRequest event) {
         jdbc.sql("""
                         INSERT INTO events (id, title, starts_at, venue_name, city, owner_id)

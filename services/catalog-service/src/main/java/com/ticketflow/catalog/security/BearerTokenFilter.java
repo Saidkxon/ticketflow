@@ -17,8 +17,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Catalog checks access tokens itself (ADR-0004, Part B): the gateway checks them early, but a request that
  * reaches this service some other way must not be trusted.
  *
- * <p>Reading the event list is public. Everything else under /api/v1/events, and "my events", needs a valid
- * token with the ORGANIZER role; the service that owns the data decides about roles. The rule is
+ * <p>Reading the event list is public. Everything else under /api/v1/events, and the private "mine" area (my
+ * events and their layouts), needs a valid token with the ORGANIZER role; the service that owns the data
+ * decides about roles. The rule is
  * "everything that is not a plain read", so a new write endpoint is protected without anybody remembering to
  * list it. The verified token is put on the request only after both checks passed, and the controllers refuse
  * a request that has none, so an unusual spelling of a path cannot skip the check.
@@ -78,12 +79,12 @@ public class BearerTokenFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    /** True for every request under /api/v1/events except a plain read (GET or HEAD), and for "my events". */
+    /** True for every request under /api/v1/events except a plain read (GET or HEAD), and for the "mine" area. */
     static boolean needsOrganizer(String method, String path) {
         if (!path.equals(EVENTS) && !path.startsWith(EVENTS + "/")) {
             return false;
         }
         boolean read = "GET".equals(method) || "HEAD".equals(method);
-        return !read || path.equals(MY_EVENTS);
+        return !read || path.equals(MY_EVENTS) || path.startsWith(MY_EVENTS + "/");
     }
 }

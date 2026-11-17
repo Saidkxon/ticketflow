@@ -166,7 +166,9 @@ class TokenCheckTest {
         String address = nextAddress();
 
         for (String[] call : new String[][] {
-                {"POST", "/api/v1/events"}, {"PUT", "/api/v1/events/" + id}, {"GET", "/api/v1/events/mine"}}) {
+                {"POST", "/api/v1/events"}, {"PUT", "/api/v1/events/" + id}, {"GET", "/api/v1/events/mine"},
+                {"PUT", "/api/v1/events/" + id + "/layout"}, {"GET", "/api/v1/events/mine/" + id},
+                {"GET", "/api/v1/events/mine/" + id + "/layout"}}) {
             HttpResponse<String> response = send(call[0], call[1], null, address);
 
             assertThat(response.statusCode()).as(call[0] + " " + call[1]).isEqualTo(401);
@@ -193,6 +195,23 @@ class TokenCheckTest {
         assertThat(send("GET", "/api/v1/events/mine", token, address).statusCode()).isEqualTo(200);
         assertThat(receivedMethod).isEqualTo("GET");
         assertThat(receivedUri).isEqualTo("/api/v1/events/mine");
+    }
+
+    @Test
+    void theLayoutPathsAreForwardedToCatalogWithAToken() throws Exception {
+        String id = UUID.randomUUID().toString();
+        String token = TokenFixtures.token(KEY, UUID.randomUUID());
+        String address = nextAddress();
+
+        assertThat(send("PUT", "/api/v1/events/" + id + "/layout", token, address).statusCode()).isEqualTo(200);
+        assertThat(receivedMethod).isEqualTo("PUT");
+        assertThat(receivedUri).isEqualTo("/api/v1/events/" + id + "/layout");
+
+        assertThat(send("GET", "/api/v1/events/mine/" + id, token, address).statusCode()).isEqualTo(200);
+        assertThat(receivedUri).isEqualTo("/api/v1/events/mine/" + id);
+
+        assertThat(send("GET", "/api/v1/events/mine/" + id + "/layout", token, address).statusCode()).isEqualTo(200);
+        assertThat(receivedUri).isEqualTo("/api/v1/events/mine/" + id + "/layout");
     }
 
     @Test

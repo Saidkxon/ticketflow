@@ -1,8 +1,10 @@
 package com.ticketflow.catalog.events;
 
-import com.ticketflow.catalog.security.BearerTokenFilter;
+import static com.ticketflow.catalog.events.OrganizerRequests.etagOf;
+import static com.ticketflow.catalog.events.OrganizerRequests.organizerOf;
+import static com.ticketflow.catalog.events.OrganizerRequests.versionFrom;
+
 import com.ticketflow.catalog.security.VerifiedToken;
-import com.ticketflow.catalog.web.ApiException;
 import com.ticketflow.catalog.web.FieldProblem;
 import com.ticketflow.catalog.web.InvalidRequestException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,8 +12,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,9 +28,6 @@ class EventController {
 
     static final int DEFAULT_SIZE = 20;
     static final int MAX_SIZE = 50;
-
-    /** The only accepted If-Match form: one strong version tag such as "3" (ADR-0009). */
-    private static final Pattern IF_MATCH = Pattern.compile("^\"(\\d{1,18})\"$");
 
     private final EventRepository events;
     private final EventService service;
@@ -57,12 +54,20 @@ class EventController {
         return service.listMine(organizer.userId(), page, size);
     }
 
+    /** One of the caller's own events, drafts included. The ETag is the version to send back in If-Match. */
+    @GetMapping("/api/v1/events/mine/{eventId}")
+    ResponseEntity<EventDetail> myEvent(@PathVariable UUID eventId, HttpServletRequest request) {
+        VerifiedToken organizer = organizerOf(request);
+        EventDetail event = service.getOwned(organizer.userId(), eventId);
+        return ResponseEntity.ok().header(HttpHeaders.ETAG, etagOf(event.version())).body(event);
+    }
+
     @PostMapping("/api/v1/events")
     ResponseEntity<EventDetail> createEvent(@RequestBody SaveEventRequest body, HttpServletRequest request) {
         VerifiedToken organizer = organizerOf(request);
         EventDetail created = service.create(organizer.userId(), body);
         return ResponseEntity.created(URI.create("/api/v1/events/" + created.id()))
-                .header(HttpHeaders.ETAG, etagOf(created))
+                .header(HttpHeaders.ETAG, etagOf(created.version()))
                 .body(created);
     }
 
@@ -73,34 +78,7 @@ class EventController {
         VerifiedToken organizer = organizerOf(request);
         long expectedVersion = versionFrom(ifMatch);
         EventDetail updated = service.update(organizer.userId(), eventId, expectedVersion, body);
-        return ResponseEntity.ok().header(HttpHeaders.ETAG, etagOf(updated)).body(updated);
-    }
-
-    /**
-     * The token filter puts the verified token on a request only after the token and the ORGANIZER role were
-     * checked. A request without it did not pass the filter (for example an unusual spelling of the path), so it
-     * is refused here as well.
-     */
-    private static VerifiedToken organizerOf(HttpServletRequest request) {
-        if (request.getAttribute(BearerTokenFilter.TOKEN_ATTRIBUTE) instanceof VerifiedToken token) {
-            return token;
-        }
-        throw ApiException.unauthenticated();
-    }
-
-    private static long versionFrom(String ifMatch) {
-        if (ifMatch == null) {
-            throw ApiException.preconditionRequired();
-        }
-        Matcher matcher = IF_MATCH.matcher(ifMatch.trim());
-        if (!matcher.matches()) {
-            throw new InvalidRequestException(List.of(new FieldProblem("If-Match", "must look like \"3\"")));
-        }
-        return Long.parseLong(matcher.group(1));
-    }
-
-    private static String etagOf(EventDetail event) {
-        return "\"" + event.version() + "\"";
+        return ResponseEntity.ok().header(HttpHeaders.ETAG, etagOf(updated.version())).body(updated);
     }
 
     private static void checkPaging(int page, int size) {

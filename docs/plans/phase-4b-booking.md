@@ -44,6 +44,7 @@ Catalog today has a minimal `events` table (title, start time, published flag) a
 ## Decisions taken with this plan
 
 - The venue layout belongs to the event; there is no reusable venue entity in the MVP.
+- A section has exactly one price tier, and its rows are lettered A to Z (at most 26 rows per section); a hall with different prices is described as several sections. At most 5,000 seats per event.
 - An Admin gives a user the `ORGANIZER` role through the existing roles endpoint; there is no self-service sign-up as organizer.
 - The seat map is drawn as SVG, which is accessible and expected to be enough for about 2,000 seats; PR 13 measures it.
 - No Redis. Holds stay in PostgreSQL (ADR-0012, option B1), availability uses an in-process cache, and rate limits stay in memory (ADR-0013). Revisit only if measurements show a problem, and then with an ADR first.
