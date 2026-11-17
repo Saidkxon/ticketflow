@@ -39,7 +39,7 @@ Examples:
 ## Before you push
 
 - Run `bash scripts/check-docs.sh` when you changed anything under `docs/` or `contracts/`.
-- For Java changes, run `./mvnw verify` in the service folder. Stop that service in Docker first (`docker compose -f deploy/compose.yaml --profile app stop <service>`): on Windows a running process can keep a file open and make the build fail.
+- For Java changes, run `./mvnw verify` from the repository root (add `-pl services/<name>` to build only one service). Stop that service in Docker first (`docker compose -f deploy/compose.yaml --profile app stop <service>`): on Windows a running process can keep a file open and make the build fail.
 - For changes that affect running containers, rebuild the stack and run `bash scripts/smoke-test.sh`.
 
 ## Review

@@ -31,4 +31,15 @@ class MigrationTest extends AbstractPostgresIntegrationTest {
         assertThat(columns).containsExactly("id", "aggregate_type", "aggregate_id",
                 "event_type", "payload", "created_at", "published_at");
     }
+
+    @Test
+    void eventsHaveTheOrganizerColumnsAndTheyAreRequired() {
+        List<String> required = jdbc.queryForList(
+                "select column_name from information_schema.columns "
+                        + "where table_name = 'events' and is_nullable = 'NO' "
+                        + "and column_name in ('owner_id', 'venue_name', 'city') order by column_name",
+                String.class);
+
+        assertThat(required).containsExactly("city", "owner_id", "venue_name");
+    }
 }

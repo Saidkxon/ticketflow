@@ -40,6 +40,8 @@ services:
       CATALOG_DB_URL: jdbc:postgresql://postgres:5432/catalog
       CATALOG_DB_USER: catalog
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?set CATALOG_DB_PASSWORD in deploy/.env}
+      # Catalog checks access tokens itself and fetches Identity's public keys on first use (ADR-0004).
+      IDENTITY_URI: http://identity:18082
     depends_on:
       postgres:
         condition: service_healthy

@@ -41,6 +41,7 @@ class TokenCheckTest {
     /** The key list that the stand-in serves. */
     private static volatile String publishedKeys = TokenFixtures.jwks(KEY);
     private static volatile String receivedUri;
+    private static volatile String receivedMethod;
     private static volatile String receivedAuthorization;
     private static volatile int addressCounter = 0;
 
@@ -65,6 +66,7 @@ class TokenCheckTest {
     @BeforeEach
     void forgetPreviousRequest() {
         receivedUri = null;
+        receivedMethod = null;
         receivedAuthorization = null;
     }
 
@@ -156,6 +158,62 @@ class TokenCheckTest {
         assertThat(receivedUri).isNull();
     }
 
+    // ---- the organizer's event paths (ADR-0013 route table: reads public, writes and "my events" need a token)
+
+    @Test
+    void eventWritesAndMyEventsWithoutATokenGetThePlain401AndNoServiceIsCalled() throws Exception {
+        String id = UUID.randomUUID().toString();
+        String address = nextAddress();
+
+        for (String[] call : new String[][] {
+                {"POST", "/api/v1/events"}, {"PUT", "/api/v1/events/" + id}, {"GET", "/api/v1/events/mine"}}) {
+            HttpResponse<String> response = send(call[0], call[1], null, address);
+
+            assertThat(response.statusCode()).as(call[0] + " " + call[1]).isEqualTo(401);
+            assertThat(response.body()).contains("\"code\":\"UNAUTHENTICATED\"");
+        }
+        assertThat(receivedUri).isNull();
+    }
+
+    @Test
+    void eventWritesAndMyEventsWithATokenAreForwardedToCatalogUnchanged() throws Exception {
+        String id = UUID.randomUUID().toString();
+        String token = TokenFixtures.token(KEY, UUID.randomUUID());
+        String address = nextAddress();
+
+        assertThat(send("POST", "/api/v1/events", token, address).statusCode()).isEqualTo(200);
+        assertThat(receivedMethod).isEqualTo("POST");
+        assertThat(receivedUri).isEqualTo("/api/v1/events");
+        assertThat(receivedAuthorization).isEqualTo("Bearer " + token);
+
+        assertThat(send("PUT", "/api/v1/events/" + id, token, address).statusCode()).isEqualTo(200);
+        assertThat(receivedMethod).isEqualTo("PUT");
+        assertThat(receivedUri).isEqualTo("/api/v1/events/" + id);
+
+        assertThat(send("GET", "/api/v1/events/mine", token, address).statusCode()).isEqualTo(200);
+        assertThat(receivedMethod).isEqualTo("GET");
+        assertThat(receivedUri).isEqualTo("/api/v1/events/mine");
+    }
+
+    @Test
+    void readingEventsStaysPublic() throws Exception {
+        String address = nextAddress();
+
+        assertThat(send("GET", "/api/v1/events", null, address).statusCode()).isEqualTo(200);
+        assertThat(send("GET", "/api/v1/events/" + UUID.randomUUID(), null, address).statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void anEventMethodThatIsNotRoutedIsRefusedWithoutATokenAndNotForwardedWithOne() throws Exception {
+        String path = "/api/v1/events/" + UUID.randomUUID();
+        String token = TokenFixtures.token(KEY, UUID.randomUUID());
+        String address = nextAddress();
+
+        assertThat(send("DELETE", path, null, address).statusCode()).isEqualTo(401);
+        assertThat(send("DELETE", path, token, address).statusCode()).isIn(404, 405);
+        assertThat(receivedUri).isNull();
+    }
+
     // ---- key rotation (ADR-0004, test obligation 8)
 
     @Test
@@ -233,6 +291,7 @@ class TokenCheckTest {
             });
             server.createContext("/", exchange -> {
                 receivedUri = exchange.getRequestURI().toString();
+                receivedMethod = exchange.getRequestMethod();
                 receivedAuthorization = exchange.getRequestHeaders().getFirst("Authorization");
                 exchange.getRequestBody().readAllBytes();
                 byte[] body = "{}".getBytes(StandardCharsets.UTF_8);

@@ -6,14 +6,20 @@ info:
     Public API of the Event Catalog service, reached through the API gateway (ADR-0002, ADR-0013).
     This file is the source of truth: a change to behavior starts with a change here (ADR-0009, part E).
 
-    Walking-skeleton scope: only the event list exists. Fields and operations are added
-    in later pull requests; additive changes do not create a new major version (ADR-0009, part A).
+    Scope today: the public event list, and an organizer creating and editing draft events. Venue layout,
+    publishing and search are added in later pull requests; additive changes do not create a new major
+    version (ADR-0009, part A).
+
+    Reading the list is public. Everything else needs an access token with the ORGANIZER role
+    (ADR-0004); a customer gets 403.
 servers:
   - url: /api/v1
     description: Same origin as the web app (ADR-0013, rule G10)
 tags:
   - name: events
     description: Browsing events
+  - name: organizer
+    description: Creating and editing events (ORGANIZER role)
 
 paths:
   /events:
@@ -46,7 +52,173 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
 
+    post:
+      tags: [organizer]
+      operationId: createEvent
+      summary: Create a draft event
+      description: |
+        Needs an access token with the ORGANIZER role. The event belongs to the caller and starts as a DRAFT:
+        it is not in the public list. The owner, status and version are never read from the body.
+        The response carries the new version as the ETag.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveEventRequest'
+      responses:
+        '201':
+          description: The draft was created
+          headers:
+            Location:
+              description: Path of the new event
+              schema:
+                type: string
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventDetail'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /events/mine:
+    get:
+      tags: [organizer]
+      operationId: listMyEvents
+      summary: List my events, drafts included
+      description: |
+        Needs an access token with the ORGANIZER role. Returns only events created by the caller, in start-time
+        order with the ID as tie-breaker. Not for caching.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of the caller's events (empty when there are none)
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyEventPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /events/{eventId}:
+    put:
+      tags: [organizer]
+      operationId: updateEvent
+      summary: Change a draft event
+      description: |
+        Needs an access token with the ORGANIZER role, and the event must be the caller's own. Replaces title,
+        start time, venue and city. The If-Match header must carry the version the caller last saw, written as
+        a quoted number such as "3" (the ETag of the last response); without it the answer is 428, and with an
+        old version it is 412 and nothing changes. A published event can no longer be edited (409).
+        An event of another organizer looks exactly like a missing one (404).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-Match
+          in: header
+          required: true
+          description: The version being changed, as a quoted number, for example "3"
+          schema:
+            type: string
+            pattern: '^"[0-9]{1,18}"$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveEventRequest'
+      responses:
+        '200':
+          description: The draft was changed
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventDetail'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The event is published and can no longer be edited. Code EVENT_NOT_EDITABLE.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '412':
+          description: The event was changed by someone else since the caller loaded it. Code PRECONDITION_FAILED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '428':
+          description: The If-Match header is missing. Code PRECONDITION_REQUIRED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: The access token from POST /auth/login or /auth/refresh (see the Identity contract).
+
   parameters:
     Page:
       name: page
@@ -69,6 +241,10 @@ components:
         default: 20
 
   headers:
+    ETag:
+      description: The event version as a strong ETag, for example "3". Send it back in If-Match to change the event.
+      schema:
+        type: string
     CorrelationId:
       description: Correlation ID of this request (ADR-0009). Created by the gateway when the caller sends none.
       schema:
@@ -97,7 +273,7 @@ components:
           minimum: 0
     EventSummary:
       type: object
-      required: [id, title, startsAt]
+      required: [id, title, startsAt, venueName, city]
       properties:
         id:
           type: string
@@ -108,6 +284,78 @@ components:
           type: string
           format: date-time
           description: ISO 8601 in UTC, with a trailing Z
+        venueName:
+          type: string
+        city:
+          type: string
+    SaveEventRequest:
+      type: object
+      description: |
+        The fields an organizer sets. Texts are trimmed and must not contain control characters.
+        Any other field is rejected with 400.
+      required: [title, startsAt, venueName, city]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        startsAt:
+          type: string
+          format: date-time
+          description: ISO 8601 in UTC, with a trailing Z; must be in the future
+        venueName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        city:
+          type: string
+          minLength: 1
+          maxLength: 100
+    EventDetail:
+      type: object
+      description: An event as its organizer sees it
+      required: [id, title, startsAt, venueName, city, status, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        venueName:
+          type: string
+        city:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED]
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Optimistic-locking counter; also sent as the ETag and expected back in If-Match
+    MyEventPage:
+      type: object
+      required: [items, page, size, totalItems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventDetail'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 50
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
 
     Problem:
       type: object
@@ -145,6 +393,24 @@ components:
                 type: string
 
   responses:
+    Unauthenticated:
+      description: No access token, or an invalid one. Code UNAUTHENTICATED. The answer never says why.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: The token is valid but lacks the ORGANIZER role. Code FORBIDDEN.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: No such event, or it belongs to another organizer. Code NOT_FOUND.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     InvalidRequest:
       description: Invalid input. Code INVALID_REQUEST.
       content:
