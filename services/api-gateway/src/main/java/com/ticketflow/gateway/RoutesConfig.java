@@ -18,12 +18,18 @@ import org.springframework.web.servlet.function.ServerResponse;
 @Configuration(proxyBeanMethods = false)
 class RoutesConfig {
 
-    /** Event reads go to the Catalog service (the contract is contracts/catalog.openapi.yaml). */
+    /**
+     * Event reads go to the Catalog service (the contract is contracts/catalog.openapi.yaml), and so do the
+     * organizer's writes: create and update. Reads are public except "my events"; the writes need a token
+     * (BearerTokenFilter), and Catalog checks the token and the ORGANIZER role again.
+     */
     @Bean
     RouterFunction<ServerResponse> catalogEventRoutes(
             @Value("${ticketflow.gateway.catalog-uri}") String catalogUri) {
         return route("catalog-events")
                 .GET("/api/v1/events/**", http())
+                .POST("/api/v1/events", http())
+                .PUT("/api/v1/events/{eventId}", http())
                 .before(uri(catalogUri))
                 .build();
     }

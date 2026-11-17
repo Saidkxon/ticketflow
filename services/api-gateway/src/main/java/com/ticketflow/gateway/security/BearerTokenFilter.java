@@ -22,6 +22,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * forwarded unchanged, because every service checks it again and decides about roles itself.
  * A valid token also gets its own request counter per user (ADR-0013, rule G3).
  * A path is public unless it is listed here, so a new protected area must be added to this list.
+ * The events path is mixed: reading the list is public, but "my events" and every write need a token.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 30)
@@ -32,6 +33,9 @@ class BearerTokenFilter extends OncePerRequestFilter {
 
     /** Path prefixes that need a valid access token. Add the booking and payment prefixes when those services get routes. */
     static final List<String> PROTECTED_PREFIXES = List.of("/api/v1/users");
+
+    private static final String EVENTS = "/api/v1/events";
+    private static final String MY_EVENTS = "/api/v1/events/mine";
 
     private final AccessTokenVerifier verifier;
     private final FixedWindowLimiter limiter;
@@ -46,7 +50,7 @@ class BearerTokenFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
-        if (!needsToken(request.getRequestURI())) {
+        if (!needsToken(request.getMethod(), request.getRequestURI())) {
             chain.doFilter(request, response);
             return;
         }
@@ -80,11 +84,17 @@ class BearerTokenFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    static boolean needsToken(String path) {
+    static boolean needsToken(String method, String path) {
         for (String prefix : PROTECTED_PREFIXES) {
             if (path.equals(prefix) || path.startsWith(prefix + "/")) {
                 return true;
             }
+        }
+        // Under the events path everything except a plain read needs a token, so a new write is protected
+        // without anybody remembering to list it. "My events" is a read, but it is private.
+        if (path.equals(EVENTS) || path.startsWith(EVENTS + "/")) {
+            boolean read = "GET".equals(method) || "HEAD".equals(method);
+            return !read || path.equals(MY_EVENTS);
         }
         return false;
     }

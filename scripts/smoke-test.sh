@@ -54,6 +54,11 @@ me="$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $access" "$WEB/api/v
 check "auth: users/me with the token" 200 "$(printf '%s' "$me" | tail -1)"
 contains "auth: users/me is the registered user" "$email" "$me"
 check "auth: a customer may not list users" 403 "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $access" "$WEB/api/v1/users")"
+# Organizer endpoints (ADR-0004): a customer cannot create events or list "my events"; no token is refused.
+event_json='{"title":"Smoke","startsAt":"2099-01-01T18:00:00Z","venueName":"Hall","city":"Tashkent"}'
+check "events: create without a token is refused" 401 "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d "$event_json" "$WEB/api/v1/events")"
+check "events: a customer may not create an event" 403 "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $access" -H 'Content-Type: application/json' -d "$event_json" "$WEB/api/v1/events")"
+check "events: a customer may not list my events" 403 "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $access" "$WEB/api/v1/events/mine")"
 first="$(cookie_of "$login")"
 refreshed="$(auth refresh -H "Cookie: refresh_token=$first")"
 check "auth: refresh" 200 "$(status_of "$refreshed")"

@@ -66,6 +66,8 @@ class EventControllerTest extends AbstractPostgresIntegrationTest {
                 .andExpect(jsonPath("$.items[0].title").value("Earlier show"))
                 .andExpect(jsonPath("$.items[0].startsAt").value("2026-12-01T18:00:00Z"))
                 .andExpect(jsonPath("$.items[0].id").isString())
+                .andExpect(jsonPath("$.items[0].venueName").value("Main Hall"))
+                .andExpect(jsonPath("$.items[0].city").value("Tashkent"))
                 .andExpect(jsonPath("$.items[1].title").value("Later show"))
                 .andExpect(jsonPath("$.totalItems").value(2));
     }
@@ -111,11 +113,12 @@ class EventControllerTest extends AbstractPostgresIntegrationTest {
 
     private void insert(String title, String startsAt, boolean published) {
         String publishedAt = published ? "now()" : "NULL";
-        jdbc.sql("INSERT INTO events (id, title, starts_at, published_at) "
-                        + "VALUES (:id, :title, :startsAt, " + publishedAt + ")")
+        jdbc.sql("INSERT INTO events (id, title, starts_at, published_at, owner_id, venue_name, city) "
+                        + "VALUES (:id, :title, :startsAt, " + publishedAt + ", :owner, 'Main Hall', 'Tashkent')")
                 .param("id", UUID.randomUUID())
                 .param("title", title)
                 .param("startsAt", OffsetDateTime.parse(startsAt))
+                .param("owner", UUID.randomUUID())
                 .update();
     }
 }

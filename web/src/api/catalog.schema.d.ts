@@ -18,6 +18,57 @@ export interface paths {
          */
         get: operations["listEvents"];
         put?: never;
+        /**
+         * Create a draft event
+         * @description Needs an access token with the ORGANIZER role. The event belongs to the caller and starts as a DRAFT:
+         *     it is not in the public list. The owner, status and version are never read from the body.
+         *     The response carries the new version as the ETag.
+         */
+        post: operations["createEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my events, drafts included
+         * @description Needs an access token with the ORGANIZER role. Returns only events created by the caller, in start-time
+         *     order with the ID as tie-breaker. Not for caching.
+         */
+        get: operations["listMyEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a draft event
+         * @description Needs an access token with the ORGANIZER role, and the event must be the caller's own. Replaces title,
+         *     start time, venue and city. The If-Match header must carry the version the caller last saw, written as
+         *     a quoted number such as "3" (the ETag of the last response); without it the answer is 428, and with an
+         *     old version it is 412 and nothing changes. A published event can no longer be edited (409).
+         *     An event of another organizer looks exactly like a missing one (404).
+         */
+        put: operations["updateEvent"];
         post?: never;
         delete?: never;
         options?: never;
@@ -45,6 +96,46 @@ export interface components {
              * @description ISO 8601 in UTC, with a trailing Z
              */
             startsAt: string;
+            venueName: string;
+            city: string;
+        };
+        /**
+         * @description The fields an organizer sets. Texts are trimmed and must not contain control characters.
+         *     Any other field is rejected with 400.
+         */
+        SaveEventRequest: {
+            title: string;
+            /**
+             * Format: date-time
+             * @description ISO 8601 in UTC, with a trailing Z; must be in the future
+             */
+            startsAt: string;
+            venueName: string;
+            city: string;
+        };
+        /** @description An event as its organizer sees it */
+        EventDetail: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** Format: date-time */
+            startsAt: string;
+            venueName: string;
+            city: string;
+            /** @enum {string} */
+            status: "DRAFT" | "PUBLISHED";
+            /**
+             * Format: int64
+             * @description Optimistic-locking counter; also sent as the ETag and expected back in If-Match
+             */
+            version: number;
+        };
+        MyEventPage: {
+            items: components["schemas"]["EventDetail"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            totalItems: number;
         };
         /** @description RFC 9457 Problem Details with our stable machine-readable code (ADR-0009, part B) */
         Problem: {
@@ -69,6 +160,33 @@ export interface components {
         };
     };
     responses: {
+        /** @description No access token, or an invalid one. Code UNAUTHENTICATED. The answer never says why. */
+        Unauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The token is valid but lacks the ORGANIZER role. Code FORBIDDEN. */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description No such event, or it belongs to another organizer. Code NOT_FOUND. */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Invalid input. Code INVALID_REQUEST. */
         InvalidRequest: {
             headers: {
@@ -116,6 +234,8 @@ export interface components {
     };
     requestBodies: never;
     headers: {
+        /** @description The event version as a strong ETag, for example "3". Send it back in If-Match to change the event. */
+        ETag: string;
         /** @description Correlation ID of this request (ADR-0009). Created by the gateway when the caller sends none. */
         CorrelationId: string;
     };
@@ -148,6 +268,137 @@ export interface operations {
                 };
             };
             400: components["responses"]["InvalidRequest"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    createEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveEventRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft was created */
+            201: {
+                headers: {
+                    /** @description Path of the new event */
+                    Location?: string;
+                    ETag: components["headers"]["ETag"];
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    listMyEvents: {
+        parameters: {
+            query?: {
+                /** @description Page number, starting at 0 */
+                page?: components["parameters"]["Page"];
+                /** @description Items per page (maximum 50) */
+                size?: components["parameters"]["Size"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the caller's events (empty when there are none) */
+            200: {
+                headers: {
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyEventPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    updateEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The version being changed, as a quoted number, for example "3" */
+                "If-Match": string;
+            };
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveEventRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft was changed */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The event is published and can no longer be edited. Code EVENT_NOT_EDITABLE. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The event was changed by someone else since the caller loaded it. Code PRECONDITION_FAILED. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The If-Match header is missing. Code PRECONDITION_REQUIRED. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["Unavailable"];

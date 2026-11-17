@@ -12,6 +12,11 @@ spring:
       maximum-pool-size: 5
       connection-timeout: 3000
 
+  # A request body with a field we do not know is rejected, so nobody can slip in a field such as "ownerId".
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
 server:
   port: 18081
 
@@ -35,3 +40,10 @@ management:
 logging:
   pattern:
     level: "%5p [%X{correlationId:-}]"
+
+# Access tokens (ADR-0004). Identity's public keys are fetched on first use from Identity, inside the
+# container network only, so Catalog starts even when Identity is not up yet.
+ticketflow:
+  catalog:
+    jwt:
+      jwks-uri: ${IDENTITY_URI:http://localhost:18082}/.well-known/jwks.json
