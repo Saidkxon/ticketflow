@@ -5,7 +5,7 @@ export function messageForAuthError(error: unknown): string {
   if (error instanceof ApiError) {
     switch (error.code) {
       case 'INVALID_CREDENTIALS':
-        return 'The email or password does not match.';
+        return 'The email or password is not right.';
       case 'EMAIL_ALREADY_REGISTERED':
         return 'An account with this email already exists. Try signing in instead.';
       case 'RATE_LIMITED':

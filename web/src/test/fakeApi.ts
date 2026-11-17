@@ -15,7 +15,7 @@ export function token(value: string, expiresIn = 900): TokenResponse {
   return { accessToken: value, tokenType: 'Bearer', expiresIn };
 }
 
-/** A stand-in for the Identity API. By default, nobody has a session and every call works. */
+/** A stand-in for the Identity API. By default nobody has a session and every call works. */
 export function fakeApi(): FakeApi {
   const api: FakeApi = {
     register: vi.fn<AuthApi['register']>().mockResolvedValue(ADA),
