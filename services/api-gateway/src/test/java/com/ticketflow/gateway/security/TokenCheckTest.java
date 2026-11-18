@@ -168,7 +168,7 @@ class TokenCheckTest {
         for (String[] call : new String[][] {
                 {"POST", "/api/v1/events"}, {"PUT", "/api/v1/events/" + id}, {"GET", "/api/v1/events/mine"},
                 {"PUT", "/api/v1/events/" + id + "/layout"}, {"GET", "/api/v1/events/mine/" + id},
-                {"GET", "/api/v1/events/mine/" + id + "/layout"}}) {
+                {"GET", "/api/v1/events/mine/" + id + "/layout"}, {"POST", "/api/v1/events/" + id + "/publish"}}) {
             HttpResponse<String> response = send(call[0], call[1], null, address);
 
             assertThat(response.statusCode()).as(call[0] + " " + call[1]).isEqualTo(401);
@@ -215,11 +215,24 @@ class TokenCheckTest {
     }
 
     @Test
+    void publishIsForwardedToCatalogWithATokenUnchanged() throws Exception {
+        String id = UUID.randomUUID().toString();
+        String token = TokenFixtures.token(KEY, UUID.randomUUID());
+
+        assertThat(send("POST", "/api/v1/events/" + id + "/publish", token, nextAddress()).statusCode()).isEqualTo(200);
+        assertThat(receivedMethod).isEqualTo("POST");
+        assertThat(receivedUri).isEqualTo("/api/v1/events/" + id + "/publish");
+        assertThat(receivedAuthorization).isEqualTo("Bearer " + token);
+    }
+
+    @Test
     void readingEventsStaysPublic() throws Exception {
         String address = nextAddress();
 
         assertThat(send("GET", "/api/v1/events", null, address).statusCode()).isEqualTo(200);
         assertThat(send("GET", "/api/v1/events/" + UUID.randomUUID(), null, address).statusCode()).isEqualTo(200);
+        assertThat(send("GET", "/api/v1/events/" + UUID.randomUUID() + "/layout", null, address).statusCode())
+                .isEqualTo(200);
     }
 
     @Test

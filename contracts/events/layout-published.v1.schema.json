@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ticketflow.local/contracts/events/layout-published.v1.schema.json",
+  "title": "LayoutPublished v1",
+  "description": "Catalog publishes an event: its layout and prices are frozen. Consumers fetch the layout with GET /api/v1/events/{eventId}/layout. Routing key: catalog.layout-published. Consumers ignore unknown fields (ADR-0009, part F).",
+  "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "producer", "correlationId", "aggregateId", "data"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of this message, used by consumers to recognize duplicates"
+    },
+    "eventType": { "const": "LayoutPublished" },
+    "eventVersion": { "const": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "producer": { "const": "catalog-service" },
+    "correlationId": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Correlation ID of the request that caused the message, or null when there was none"
+    },
+    "aggregateId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The ticketed event; the same as data.eventId"
+    },
+    "data": {
+      "type": "object",
+      "required": ["eventId", "layoutVersion"],
+      "properties": {
+        "eventId": { "type": "string", "format": "uuid", "description": "The ticketed event" },
+        "layoutVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The event version at publishing; the layout endpoint returns the same number"
+        }
+      }
+    }
+  }
+}

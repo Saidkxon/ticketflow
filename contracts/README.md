@@ -4,7 +4,7 @@ The OpenAPI files here are the **source of truth** for every public API (ADR-000
 
 | File | Service | Status |
 |---|---|---|
-| [catalog.openapi.yaml](catalog.openapi.yaml) | Event Catalog | Walking skeleton: event list only |
+| [catalog.openapi.yaml](catalog.openapi.yaml) | Event Catalog | Public event list and event layout; organizer events, layout and publish |
 | [identity.openapi.yaml](identity.openapi.yaml) | Identity | Proposed: register, login, refresh, logout, current user, roles, public keys (no code yet) |
 
 Rules (ADR-0009):
@@ -14,4 +14,4 @@ Rules (ADR-0009):
 - Lists use `page` (from 0) and `size` (default 20, maximum 50).
 - JSON fields are camelCase, IDs are UUID strings, timestamps are ISO 8601 in UTC.
 
-Not yet in place (decided when the first endpoint ships): the automated breaking-change check, the contract tests against real responses, and the generated web client. Event schemas will live in `contracts/events/`.
+Not yet in place (decided when the first endpoint ships): the automated breaking-change check, the contract tests against real responses, and the generated web client. Event messages are described as JSON Schema files in [`events/`](events/layout-published.v1.schema.json) (one file per event type and version; the file name carries the version).

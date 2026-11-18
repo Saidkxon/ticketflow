@@ -81,6 +81,13 @@ class EventRepository {
                 .optional();
     }
 
+    Optional<java.time.Instant> findStartsAt(UUID id) {
+        return jdbc.sql("SELECT starts_at FROM events WHERE id = :id")
+                .param("id", id)
+                .query((rs, rowNum) -> rs.getObject("starts_at", OffsetDateTime.class).toInstant())
+                .optional();
+    }
+
     Optional<EventState> findState(UUID id) {
         return jdbc.sql("SELECT owner_id, published_at IS NOT NULL AS published FROM events WHERE id = :id")
                 .param("id", id)
@@ -104,6 +111,25 @@ class EventRepository {
                 .param("owner", ownerId)
                 .param("version", expectedVersion)
                 .param("currency", currency)
+                .query(Long.class)
+                .optional();
+    }
+
+    /**
+     * Publishes a draft of this owner that still has the version the caller saw, and returns the new version.
+     * Like {@link #updateDraft} this is a compare-and-set, and it keeps the row locked until the end of the
+     * transaction, so nothing can change the layout while the publishing is checked and recorded.
+     */
+    Optional<Long> publishDraft(UUID id, UUID ownerId, long expectedVersion) {
+        return jdbc.sql("""
+                        UPDATE events
+                           SET published_at = now(), updated_at = now(), version = version + 1
+                         WHERE id = :id AND owner_id = :owner AND version = :version AND published_at IS NULL
+                        RETURNING version
+                        """)
+                .param("id", id)
+                .param("owner", ownerId)
+                .param("version", expectedVersion)
                 .query(Long.class)
                 .optional();
     }

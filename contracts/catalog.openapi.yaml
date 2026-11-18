@@ -291,6 +291,50 @@ paths:
           $ref: '#/components/responses/Unavailable'
 
   /events/{eventId}/layout:
+    get:
+      tags: [events]
+      operationId: getPublishedLayout
+      summary: Read the frozen layout of a published event
+      description: |
+        Public, no token. Returns the whole layout with every seat and its ID. The layout of a published event
+        never changes, so the answer is cacheable: the ETag is the layout version, and a matching If-None-Match
+        gets 304. The browser draws the seat map from it, and Booking fetches it as its snapshot after a
+        "layout published" event (ADR-0012). A draft or unknown event is 404.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - name: If-None-Match
+          in: header
+          required: false
+          description: The ETag of a copy the caller already has
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The layout
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              description: public with a max-age
+              schema:
+                type: string
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishedLayout'
+        '304':
+          description: The caller's copy is still current
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
     put:
       tags: [organizer]
       operationId: saveEventLayout
@@ -368,6 +412,77 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
 
+  /events/{eventId}/publish:
+    post:
+      tags: [organizer]
+      operationId: publishEvent
+      summary: Publish a draft event
+      description: |
+        Needs an access token with the ORGANIZER role, and the event must be the caller's own draft. Publishing
+        freezes the event, its price tiers and its seats, makes the event visible in the public list, and records
+        a "layout published" message for the other services, all in one step. The If-Match header must carry the
+        version the caller last saw (428 when missing, 412 when old). The new version is returned as the ETag.
+
+        An event is ready when it has a saved layout and has not started yet (409 EVENT_NOT_READY otherwise).
+        Publishing an event that is already published is 409 EVENT_ALREADY_PUBLISHED.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - name: If-Match
+          in: header
+          required: true
+          description: The version being published, as a quoted number, for example "3"
+          schema:
+            type: string
+            pattern: '^"[0-9]{1,18}"$'
+      responses:
+        '200':
+          description: The event is published
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventDetail'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The event is not ready (code EVENT_NOT_READY: no layout yet, or it already started) or is already
+            published (code EVENT_ALREADY_PUBLISHED).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '412':
+          description: The event was changed by someone else since the caller loaded it. Code PRECONDITION_FAILED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '428':
+          description: The If-Match header is missing. Code PRECONDITION_REQUIRED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -416,6 +531,74 @@ components:
         format: uuid
 
   schemas:
+    PublishedLayout:
+      type: object
+      required: [eventId, layoutVersion, currency, priceTiers, sections, totalSeats]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        layoutVersion:
+          type: integer
+          format: int64
+          description: The event version at publishing; it never changes afterwards
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        priceTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriceTierView'
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublishedSection'
+        totalSeats:
+          type: integer
+          minimum: 1
+    PublishedSection:
+      type: object
+      required: [id, name, tierId, tier, rows]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tierId:
+          type: string
+          format: uuid
+          description: The price tier of this section (an ID from priceTiers)
+        tier:
+          type: string
+          description: The name of that tier
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublishedRow'
+    PublishedRow:
+      type: object
+      required: [label, seats]
+      properties:
+        label:
+          type: string
+          description: Row letter, A to Z
+        seats:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublishedSeat'
+    PublishedSeat:
+      type: object
+      required: [id, number]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The opaque, immutable seat ID that Booking stores
+        number:
+          type: integer
+          minimum: 1
+          description: Seat number in the row, for display
     EventPage:
       type: object
       required: [items, page, size, totalItems]
