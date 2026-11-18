@@ -177,3 +177,4 @@ Until alerting exists, dashboards are checked by a person during load tests and 
 ## Clarifications
 
 - **2026-11-15, structured logging verified on 4.1.** With the `json` profile active, the Identity container writes one ECS 8.11 JSON object per line to the console, with `@timestamp`, `log.level`, `log.logger`, `service.name`, `service.version`, the message and the `correlationId` from the MDC. This was checked on real container output (`docker compose logs identity`) for a failed login; the message did not contain the email or the password. The Catalog and Gateway services use the same configuration but their output was not inspected in this check.
+- **2026-11-18, coordinates.** User positions (ADR-0015) follow the same rule as names and emails: they are never written to logs, metrics, traces or events. Request logs record the route template and never the body.
