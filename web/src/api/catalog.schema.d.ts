@@ -126,7 +126,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Read the frozen layout of a published event
+         * @description Public, no token. Returns the whole layout with every seat and its ID. The layout of a published event
+         *     never changes, so the answer is cacheable: the ETag is the layout version, and a matching If-None-Match
+         *     gets 304. The browser draws the seat map from it, and Booking fetches it as its snapshot after a
+         *     "layout published" event (ADR-0012). A draft or unknown event is 404.
+         */
+        get: operations["getPublishedLayout"];
         /**
          * Save the venue layout of a draft event
          * @description Needs an access token with the ORGANIZER role, and the event must be the caller's own draft. Replaces the
@@ -148,10 +155,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/{eventId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a draft event
+         * @description Needs an access token with the ORGANIZER role, and the event must be the caller's own draft. Publishing
+         *     freezes the event, its price tiers and its seats, makes the event visible in the public list, and records
+         *     a "layout published" message for the other services, all in one step. The If-Match header must carry the
+         *     version the caller last saw (428 when missing, 412 when old). The new version is returned as the ETag.
+         *
+         *     An event is ready when it has a saved layout and has not started yet (409 EVENT_NOT_READY otherwise).
+         *     Publishing an event that is already published is 409 EVENT_ALREADY_PUBLISHED.
+         */
+        post: operations["publishEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        PublishedLayout: {
+            /** Format: uuid */
+            eventId: string;
+            /**
+             * Format: int64
+             * @description The event version at publishing; it never changes afterwards
+             */
+            layoutVersion: number;
+            currency: string;
+            priceTiers: components["schemas"]["PriceTierView"][];
+            sections: components["schemas"]["PublishedSection"][];
+            totalSeats: number;
+        };
+        PublishedSection: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /**
+             * Format: uuid
+             * @description The price tier of this section (an ID from priceTiers)
+             */
+            tierId: string;
+            /** @description The name of that tier */
+            tier: string;
+            rows: components["schemas"]["PublishedRow"][];
+        };
+        PublishedRow: {
+            /** @description Row letter, A to Z */
+            label: string;
+            seats: components["schemas"]["PublishedSeat"][];
+        };
+        PublishedSeat: {
+            /**
+             * Format: uuid
+             * @description The opaque, immutable seat ID that Booking stores
+             */
+            id: string;
+            /** @description Seat number in the row, for display */
+            number: number;
+        };
         EventPage: {
             items: components["schemas"]["EventSummary"][];
             page: number;
@@ -589,6 +662,46 @@ export interface operations {
             503: components["responses"]["Unavailable"];
         };
     };
+    getPublishedLayout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The ETag of a copy the caller already has */
+                "If-None-Match"?: string;
+            };
+            path: {
+                eventId: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The layout */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    /** @description public with a max-age */
+                    "Cache-Control"?: string;
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedLayout"];
+                };
+            };
+            /** @description The caller's copy is still current */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
     saveEventLayout: {
         parameters: {
             query?: never;
@@ -623,6 +736,70 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description The event is published and keeps its layout. Code EVENT_NOT_EDITABLE. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The event was changed by someone else since the caller loaded it. Code PRECONDITION_FAILED. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The If-Match header is missing. Code PRECONDITION_REQUIRED. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    publishEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The version being published, as a quoted number, for example "3" */
+                "If-Match": string;
+            };
+            path: {
+                eventId: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event is published */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /**
+             * @description The event is not ready (code EVENT_NOT_READY: no layout yet, or it already started) or is already
+             *     published (code EVENT_ALREADY_PUBLISHED).
+             */
             409: {
                 headers: {
                     [name: string]: unknown;

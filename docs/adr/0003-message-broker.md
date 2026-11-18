@@ -98,3 +98,7 @@ Rules:
 - ADR-0012: Part A, rule 2; test obligation 5
 - Architecture baseline: `docs/architecture/01-system-context-and-containers.md`, questions Q3 and Q4
 - Versions of RabbitMQ and the Spring AMQP integration are **not chosen here**. They are verified against official sources and pinned when the broker is first added to the compose file.
+
+## Clarifications
+
+- **2026-11-17, first outbox writer (Phase 4b, PR 3).** Catalog writes the `LayoutPublished` message into `outbox_events` in the same transaction as publishing the event (rule 1). The row ID is the envelope's `eventId`, so a consumer's duplicate check and the outbox row refer to the same ID. The whole envelope is stored as `payload`, and the schema is `contracts/events/layout-published.v1.schema.json`. The relay that reads unpublished rows and sends them to the broker, and the broker itself, come in the next Catalog pull request (plan, PR 6); until then rows wait with `published_at` empty.

@@ -20,7 +20,7 @@ class RoutesConfig {
 
     /**
      * Event reads go to the Catalog service (the contract is contracts/catalog.openapi.yaml), and so do the
-     * organizer's writes: create and update. Reads are public except "my events"; the writes need a token
+     * organizer's writes: create, update, layout and publish. Reads are public except "my events"; the writes need a token
      * (BearerTokenFilter), and Catalog checks the token and the ORGANIZER role again.
      */
     @Bean
@@ -31,6 +31,7 @@ class RoutesConfig {
                 .POST("/api/v1/events", http())
                 .PUT("/api/v1/events/{eventId}", http())
                 .PUT("/api/v1/events/{eventId}/layout", http())
+                .POST("/api/v1/events/{eventId}/publish", http())
                 .before(uri(catalogUri))
                 .build();
     }

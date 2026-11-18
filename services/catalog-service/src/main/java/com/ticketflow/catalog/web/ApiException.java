@@ -46,6 +46,16 @@ public class ApiException extends RuntimeException {
                 "A published event can no longer be edited.");
     }
 
+    public static ApiException eventAlreadyPublished() {
+        return new ApiException(HttpStatus.CONFLICT, "EVENT_ALREADY_PUBLISHED", "Event already published",
+                "The event is already published.");
+    }
+
+    /** The detail is one of the fixed texts of the publish rules, never caller input. */
+    public static ApiException eventNotReady(String detail) {
+        return new ApiException(HttpStatus.CONFLICT, "EVENT_NOT_READY", "Event is not ready to publish", detail);
+    }
+
     public static ApiException preconditionRequired() {
         return new ApiException(HttpStatus.PRECONDITION_REQUIRED, "PRECONDITION_REQUIRED",
                 "Precondition required", "Send the version you are changing in the If-Match header.");
