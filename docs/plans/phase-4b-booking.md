@@ -19,11 +19,12 @@ Catalog today has a minimal `events` table (title, start time, published flag) a
 | 2 | Venue layout | Sections, rows, seats and price tiers for a draft event, created by a generator (for example "section A, 10 rows of 20 seats, tier Standard"). Seat IDs are opaque UUIDs (ADR-0012). |
 | 3 | Publish | Publishing freezes the layout and writes a "layout published" outbox entry in the same transaction. Adds the public layout endpoint (cacheable) and the snapshot endpoint for Booking (ADR-0012, option A3). |
 | 4 | Event search | Filter the public list by name, date and city (FR-4), and by distance from the visitor ("near me"). Adds optional venue coordinates to events (ADR-0015). |
-| 5 | Web: organizer screens | Create an event, define the layout, publish, list my events. |
+| 5a | Web: organizer events | Organizer area (role check), list my events, create and edit an event with optional venue coordinates (typed as numbers; the Google map picker comes with the map in L3). |
+| 5b | Web: layout and publish | Layout editor (tiers, sections, seat count), publish with confirmation. |
 
 ## Part 1b: Location (added 2026-11-18 at the instructor's request, ADR-0015)
 
-Runs after PR 5, because it needs the web app's sign-in and settings. It delays Booking by about two weeks (my estimate). It is not started until ADR-0015 is accepted.
+Runs after PR 5b, because it needs the web app's sign-in and settings. It delays Booking by about two weeks (my estimate). It is not started until ADR-0015 is accepted.
 
 | # | Pull request | Delivers |
 |---|---|---|

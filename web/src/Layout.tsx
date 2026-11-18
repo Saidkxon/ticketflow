@@ -25,6 +25,7 @@ export function Layout() {
         <nav aria-label="Account">
           {session.status === 'signedIn' && (
             <>
+              {session.user.roles.includes('ORGANIZER') && <Link to="/organizer">My events</Link>}
               <Link to="/account">{session.user.displayName}</Link>
               <button type="button" onClick={() => void signOut()} disabled={leaving}>
                 Sign out
