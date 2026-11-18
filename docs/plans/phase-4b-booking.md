@@ -21,6 +21,18 @@ Catalog today has a minimal `events` table (title, start time, published flag) a
 | 4 | Event search | Filter the public list by name, date and city (FR-4). |
 | 5 | Web: organizer screens | Create an event, define the layout, publish, list my events. |
 
+## Part 1b: Location (added 2026-11-18 at the instructor's request, ADR-0015)
+
+Runs after PR 5, because it needs the web app's sign-in and settings. It delays Booking by about two weeks (my estimate). It is not started until ADR-0015 is accepted.
+
+| # | Pull request | Delivers |
+|---|---|---|
+| L1 | Identity: location data | Consent levels, position history, retention job (5 days Minimum, 30 days Full), access log, administrator read endpoints, gateway paths, contract. |
+| L2 | Web: consent and sending | Consent screen after registration and login (with the `VITE_LOCATION_ALLOW_NOT_NOW` switch), settings switch, position sender (200 m, once a minute). |
+| L3 | Web: administrator map | Google Maps component with markers and names, and the history of a user. |
+
+The coordinates on events and the "near me" search come in PR 4 (event search) and PR 13 (event page), not here.
+
 ## Part 2: Booking service
 
 | # | Pull request | Delivers |
