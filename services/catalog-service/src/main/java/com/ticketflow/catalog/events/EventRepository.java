@@ -1,10 +1,14 @@
 package com.ticketflow.catalog.events;
 
+import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -21,36 +25,94 @@ class EventRepository {
         this.jdbc = jdbc;
     }
 
-    /** Published events in start-time order; the id breaks ties so pages never shuffle. */
-    List<EventSummary> findPublished(int limit, long offset) {
-        return jdbc.sql("""
-                        SELECT id, title, starts_at, venue_name, city
-                        FROM events
-                        WHERE published_at IS NOT NULL
-                        ORDER BY starts_at, id
-                        LIMIT :limit OFFSET :offset
-                        """)
-                .param("limit", limit)
-                .param("offset", offset)
-                .query((rs, rowNum) -> new EventSummary(
-                        rs.getObject("id", UUID.class),
-                        rs.getString("title"),
-                        rs.getObject("starts_at", OffsetDateTime.class).toInstant(),
-                        rs.getString("venue_name"),
-                        rs.getString("city")))
+    /**
+     * Great-circle distance in kilometres (haversine, earth radius 6371 km) from the point :nearLat, :nearLng to
+     * the venue. The sine of a half difference is periodic, so a search near longitude 180 also finds venues on
+     * the other side of the date line.
+     */
+    private static final String DISTANCE_KM = """
+            6371.0 * 2 * asin(sqrt(least(1.0,
+                power(sin(radians(venue_latitude - :nearLat) / 2), 2)
+                + cos(radians(:nearLat)) * cos(radians(venue_latitude))
+                  * power(sin(radians(venue_longitude - :nearLng) / 2), 2))))""";
+
+    /**
+     * Published events that match the search, in start-time order with the id as tie-breaker so pages never
+     * shuffle. A "near" search keeps only events with coordinates inside the radius and sorts them by distance
+     * first. The SQL is assembled from fixed pieces only; every value from the caller is a parameter.
+     */
+    List<EventSummary> search(EventSearch search, int limit, long offset) {
+        Map<String, Object> params = new HashMap<>();
+        String filter = filters(search, params);
+        boolean near = search.near() != null;
+        params.put("limit", limit);
+        params.put("offset", offset);
+        return jdbc.sql("SELECT * FROM (SELECT id, title, starts_at, venue_name, city, venue_latitude, "
+                        + "venue_longitude, " + (near ? DISTANCE_KM : "CAST(NULL AS double precision)")
+                        + " AS distance_km FROM events WHERE published_at IS NOT NULL" + filter + ") e"
+                        + (near ? " WHERE distance_km <= :radius ORDER BY distance_km, starts_at, id"
+                                : " ORDER BY starts_at, id")
+                        + " LIMIT :limit OFFSET :offset")
+                .params(params)
+                .query((rs, rowNum) -> {
+                    Double distance = rs.getObject("distance_km", Double.class);
+                    return new EventSummary(
+                            rs.getObject("id", UUID.class),
+                            rs.getString("title"),
+                            rs.getObject("starts_at", OffsetDateTime.class).toInstant(),
+                            rs.getString("venue_name"),
+                            rs.getString("city"),
+                            rs.getObject("venue_latitude", Double.class),
+                            rs.getObject("venue_longitude", Double.class),
+                            distance == null ? null : Math.round(distance * 10) / 10.0);
+                })
                 .list();
     }
 
-    long countPublished() {
-        return jdbc.sql("SELECT count(*) FROM events WHERE published_at IS NOT NULL")
+    long countMatching(EventSearch search) {
+        Map<String, Object> params = new HashMap<>();
+        String filter = filters(search, params);
+        boolean near = search.near() != null;
+        return jdbc.sql("SELECT count(*) FROM (SELECT " + (near ? DISTANCE_KM : "CAST(NULL AS double precision)")
+                        + " AS distance_km FROM events WHERE published_at IS NOT NULL" + filter + ") e"
+                        + (near ? " WHERE distance_km <= :radius" : ""))
+                .params(params)
                 .query(Long.class)
                 .single();
+    }
+
+    /** The WHERE parts of a search (each starting with AND) and their parameters. */
+    private static String filters(EventSearch search, Map<String, Object> params) {
+        StringBuilder sql = new StringBuilder();
+        if (search.text() != null) {
+            sql.append(" AND title ILIKE :text ESCAPE '\\'");
+            params.put("text", "%" + search.text().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%");
+        }
+        if (search.city() != null) {
+            sql.append(" AND lower(city) = lower(:city)");
+            params.put("city", search.city());
+        }
+        if (search.from() != null) {
+            sql.append(" AND starts_at >= :from");
+            params.put("from", OffsetDateTime.ofInstant(search.from(), ZoneOffset.UTC));
+        }
+        if (search.to() != null) {
+            sql.append(" AND starts_at < :to");
+            params.put("to", OffsetDateTime.ofInstant(search.to(), ZoneOffset.UTC));
+        }
+        if (search.near() != null) {
+            sql.append(" AND venue_latitude IS NOT NULL");
+            params.put("nearLat", search.near().latitude());
+            params.put("nearLng", search.near().longitude());
+            params.put("radius", search.near().radiusKm());
+        }
+        return sql.toString();
     }
 
     /** All events of one organizer, drafts included, in start-time order with the id as tie-breaker. */
     List<EventDetail> findByOwner(UUID ownerId, int limit, long offset) {
         return jdbc.sql("""
-                        SELECT id, title, starts_at, venue_name, city, published_at, version
+                        SELECT id, title, starts_at, venue_name, city, venue_latitude, venue_longitude, published_at, version
                         FROM events
                         WHERE owner_id = :owner
                         ORDER BY starts_at, id
@@ -72,7 +134,7 @@ class EventRepository {
 
     Optional<EventDetail> findDetail(UUID id) {
         return jdbc.sql("""
-                        SELECT id, title, starts_at, venue_name, city, published_at, version
+                        SELECT id, title, starts_at, venue_name, city, venue_latitude, venue_longitude, published_at, version
                         FROM events
                         WHERE id = :id
                         """)
@@ -136,8 +198,9 @@ class EventRepository {
 
     void insertDraft(UUID id, UUID ownerId, SaveEventRequest event) {
         jdbc.sql("""
-                        INSERT INTO events (id, title, starts_at, venue_name, city, owner_id)
-                        VALUES (:id, :title, :startsAt, :venueName, :city, :owner)
+                        INSERT INTO events (id, title, starts_at, venue_name, city, owner_id,
+                                            venue_latitude, venue_longitude)
+                        VALUES (:id, :title, :startsAt, :venueName, :city, :owner, :venueLatitude, :venueLongitude)
                         """)
                 .param("id", id)
                 .param("title", event.title())
@@ -145,6 +208,8 @@ class EventRepository {
                 .param("venueName", event.venueName())
                 .param("city", event.city())
                 .param("owner", ownerId)
+                .param("venueLatitude", new SqlParameterValue(Types.DOUBLE, event.venueLatitude()))
+                .param("venueLongitude", new SqlParameterValue(Types.DOUBLE, event.venueLongitude()))
                 .update();
     }
 
@@ -156,6 +221,7 @@ class EventRepository {
         int rows = jdbc.sql("""
                         UPDATE events
                            SET title = :title, starts_at = :startsAt, venue_name = :venueName, city = :city,
+                               venue_latitude = :venueLatitude, venue_longitude = :venueLongitude,
                                updated_at = now(), version = version + 1
                          WHERE id = :id AND owner_id = :owner AND version = :version AND published_at IS NULL
                         """)
@@ -166,6 +232,8 @@ class EventRepository {
                 .param("startsAt", OffsetDateTime.ofInstant(event.startsAt(), ZoneOffset.UTC))
                 .param("venueName", event.venueName())
                 .param("city", event.city())
+                .param("venueLatitude", new SqlParameterValue(Types.DOUBLE, event.venueLatitude()))
+                .param("venueLongitude", new SqlParameterValue(Types.DOUBLE, event.venueLongitude()))
                 .update();
         return rows == 1;
     }
@@ -177,6 +245,8 @@ class EventRepository {
                 rs.getObject("starts_at", OffsetDateTime.class).toInstant(),
                 rs.getString("venue_name"),
                 rs.getString("city"),
+                rs.getObject("venue_latitude", Double.class),
+                rs.getObject("venue_longitude", Double.class),
                 rs.getObject("published_at") == null ? "DRAFT" : "PUBLISHED",
                 rs.getLong("version"));
     }

@@ -39,10 +39,16 @@ class EventController {
 
     @GetMapping("/api/v1/events")
     EventPage listEvents(@RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "" + DEFAULT_SIZE) int size) {
+            @RequestParam(defaultValue = "" + DEFAULT_SIZE) int size,
+            @RequestParam(required = false) String q, @RequestParam(required = false) String city,
+            @RequestParam(required = false) String from, @RequestParam(required = false) String to,
+            @RequestParam(required = false) String nearLatitude,
+            @RequestParam(required = false) String nearLongitude,
+            @RequestParam(required = false) String radiusKm) {
         checkPaging(page, size);
+        EventSearch search = EventSearch.parse(q, city, from, to, nearLatitude, nearLongitude, radiusKm);
         long offset = (long) page * size;
-        return new EventPage(events.findPublished(size, offset), page, size, events.countPublished());
+        return new EventPage(events.search(search, size, offset), page, size, events.countMatching(search));
     }
 
     /** The signed-in organizer's own events, drafts included. The token filter has already checked the role. */

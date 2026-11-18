@@ -29,10 +29,68 @@ paths:
       summary: List published events
       description: |
         Public, no token needed. Pages start at 0. Results are sorted by start time, then by ID,
-        so pages do not shuffle (ADR-0009, part D).
+        so pages do not shuffle (ADR-0009, part D). All filters are optional and combine; a blank value is
+        ignored.
+
+        A "near me" search (nearLatitude and nearLongitude) keeps only events whose venue has coordinates and
+        lies within radiusKm kilometres, sorted by distance first (then start time, then ID), and fills in
+        distanceKm. The point is used for this request only; the server never stores it (ADR-0015).
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
+        - name: q
+          in: query
+          required: false
+          description: Part of the title, ignoring case. At most 100 characters; % and _ are ordinary characters.
+          schema:
+            type: string
+            maxLength: 100
+        - name: city
+          in: query
+          required: false
+          description: The whole city name, ignoring case
+          schema:
+            type: string
+            maxLength: 100
+        - name: from
+          in: query
+          required: false
+          description: Events that start at or after this time (ISO 8601 in UTC with a trailing Z)
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Events that start before this time (exclusive); must be after from
+          schema:
+            type: string
+            format: date-time
+        - name: nearLatitude
+          in: query
+          required: false
+          description: Latitude of the visitor, -90 to 90. Needs nearLongitude.
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: nearLongitude
+          in: query
+          required: false
+          description: Longitude of the visitor, -180 to 180. Needs nearLatitude.
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+        - name: radiusKm
+          in: query
+          required: false
+          description: How far to look, in kilometres. Only with nearLatitude and nearLongitude.
+          schema:
+            type: number
+            minimum: 1
+            maximum: 500
+            default: 50
       responses:
         '200':
           description: One page of events (empty when none exist yet)
@@ -635,6 +693,14 @@ components:
           type: string
         city:
           type: string
+        venueLatitude:
+          type: [number, 'null']
+          description: Null when the organizer gave no coordinates
+        venueLongitude:
+          type: [number, 'null']
+        distanceKm:
+          type: [number, 'null']
+          description: Distance from the searcher, to one decimal. Only in a near search, otherwise null.
     SaveEventRequest:
       type: object
       description: |
@@ -659,6 +725,15 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+        venueLatitude:
+          type: [number, 'null']
+          minimum: -90
+          maximum: 90
+          description: Optional. Give both coordinates or neither; without them the event is not found by a near search.
+        venueLongitude:
+          type: [number, 'null']
+          minimum: -180
+          maximum: 180
     EventDetail:
       type: object
       description: An event as its organizer sees it
@@ -676,6 +751,10 @@ components:
           type: string
         city:
           type: string
+        venueLatitude:
+          type: [number, 'null']
+        venueLongitude:
+          type: [number, 'null']
         status:
           type: string
           enum: [DRAFT, PUBLISHED]

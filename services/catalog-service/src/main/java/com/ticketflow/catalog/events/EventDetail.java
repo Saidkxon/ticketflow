@@ -9,5 +9,5 @@ import java.util.UUID;
  * Field names follow contracts/catalog.openapi.yaml.
  */
 public record EventDetail(UUID id, String title, Instant startsAt, String venueName, String city,
-        String status, long version) {
+        Double venueLatitude, Double venueLongitude, String status, long version) {
 }

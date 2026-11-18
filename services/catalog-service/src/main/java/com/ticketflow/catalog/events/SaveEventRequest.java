@@ -9,9 +9,11 @@ import java.util.regex.Pattern;
 
 /**
  * The body of "create event" and "update event": the only fields an organizer may set. Ownership, status and
- * version are never read from the body (ADR-0009: bodies are bound to request objects, never to rows).
+ * version are never read from the body (ADR-0009: bodies are bound to request objects, never to rows). The
+ * venue coordinates are optional; they let visitors find the event with a "near me" search.
  */
-public record SaveEventRequest(String title, Instant startsAt, String venueName, String city) {
+public record SaveEventRequest(String title, Instant startsAt, String venueName, String city,
+        Double venueLatitude, Double venueLongitude) {
 
     static final int TITLE_MAX = 200;
     static final int VENUE_MAX = 200;
@@ -30,10 +32,20 @@ public record SaveEventRequest(String title, Instant startsAt, String venueName,
         } else if (!startsAt.isAfter(now)) {
             problems.add(new FieldProblem("startsAt", "must be in the future"));
         }
+        if ((venueLatitude == null) != (venueLongitude == null)) {
+            problems.add(new FieldProblem(venueLatitude == null ? "venueLatitude" : "venueLongitude",
+                    "is required when the other coordinate is given"));
+        }
+        if (venueLatitude != null && !(venueLatitude >= -90 && venueLatitude <= 90)) {
+            problems.add(new FieldProblem("venueLatitude", "must be from -90 to 90"));
+        }
+        if (venueLongitude != null && !(venueLongitude >= -180 && venueLongitude <= 180)) {
+            problems.add(new FieldProblem("venueLongitude", "must be from -180 to 180"));
+        }
         if (!problems.isEmpty()) {
             throw new InvalidRequestException(problems);
         }
-        return new SaveEventRequest(cleanTitle, startsAt, cleanVenue, cleanCity);
+        return new SaveEventRequest(cleanTitle, startsAt, cleanVenue, cleanCity, venueLatitude, venueLongitude);
     }
 
     /** Trims a required text and records what is wrong with it; also used for the names in a layout. */
