@@ -18,7 +18,7 @@ Catalog today has a minimal `events` table (title, start time, published flag) a
 | 1 | Organizer events | Create and edit a draft event as an `ORGANIZER`, with venue name and city added. Catalog checks access tokens for the first time. The gateway routes and protects the new paths. |
 | 2 | Venue layout | Sections, rows, seats and price tiers for a draft event, created by a generator (for example "section A, 10 rows of 20 seats, tier Standard"). Seat IDs are opaque UUIDs (ADR-0012). |
 | 3 | Publish | Publishing freezes the layout and writes a "layout published" outbox entry in the same transaction. Adds the public layout endpoint (cacheable) and the snapshot endpoint for Booking (ADR-0012, option A3). |
-| 4 | Event search | Filter the public list by name, date and city (FR-4). |
+| 4 | Event search | Filter the public list by name, date and city (FR-4), and by distance from the visitor ("near me"). Adds optional venue coordinates to events (ADR-0015). |
 | 5 | Web: organizer screens | Create an event, define the layout, publish, list my events. |
 
 ## Part 1b: Location (added 2026-11-18 at the instructor's request, ADR-0015)

@@ -3,6 +3,10 @@ package com.ticketflow.catalog.events;
 import java.time.Instant;
 import java.util.UUID;
 
-/** One item of the public event list. Field names follow contracts/catalog.openapi.yaml. */
-public record EventSummary(UUID id, String title, Instant startsAt, String venueName, String city) {
+/**
+ * One item of the public event list. {@code distanceKm} is set only in a "near" search. Field names follow
+ * contracts/catalog.openapi.yaml.
+ */
+public record EventSummary(UUID id, String title, Instant startsAt, String venueName, String city,
+        Double venueLatitude, Double venueLongitude, Double distanceKm) {
 }

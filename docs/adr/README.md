@@ -22,7 +22,7 @@ An ADR captures one significant decision: the context, the options we weighed, w
 | [0012](0012-seat-state-holds-expiry.md) | Seat-state ownership, holds and expiry | Accepted |
 | [0013](0013-api-gateway.md) | API gateway: technology, responsibilities and routing | Accepted |
 | [0014](0014-deployment-target.md) | Deployment target: one VPS with Docker Compose | Accepted |
-| [0015](0015-location-tracking.md) | Location tracking, consent and retention | Proposed |
+| [0015](0015-location-tracking.md) | Location tracking, consent and retention | Accepted |
 
 ## Suggested order for the remaining ADRs
 

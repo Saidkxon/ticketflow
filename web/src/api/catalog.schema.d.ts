@@ -14,7 +14,12 @@ export interface paths {
         /**
          * List published events
          * @description Public, no token needed. Pages start at 0. Results are sorted by start time, then by ID,
-         *     so pages do not shuffle (ADR-0009, part D).
+         *     so pages do not shuffle (ADR-0009, part D). All filters are optional and combine; a blank value is
+         *     ignored.
+         *
+         *     A "near me" search (nearLatitude and nearLongitude) keeps only events whose venue has coordinates and
+         *     lies within radiusKm kilometres, sorted by distance first (then start time, then ID), and fills in
+         *     distanceKm. The point is used for this request only; the server never stores it (ADR-0015).
          */
         get: operations["listEvents"];
         put?: never;
@@ -243,6 +248,11 @@ export interface components {
             startsAt: string;
             venueName: string;
             city: string;
+            /** @description Null when the organizer gave no coordinates */
+            venueLatitude?: number | null;
+            venueLongitude?: number | null;
+            /** @description Distance from the searcher, to one decimal. Only in a near search, otherwise null. */
+            distanceKm?: number | null;
         };
         /**
          * @description The fields an organizer sets. Texts are trimmed and must not contain control characters.
@@ -257,6 +267,9 @@ export interface components {
             startsAt: string;
             venueName: string;
             city: string;
+            /** @description Optional. Give both coordinates or neither; without them the event is not found by a near search. */
+            venueLatitude?: number | null;
+            venueLongitude?: number | null;
         };
         /** @description An event as its organizer sees it */
         EventDetail: {
@@ -267,6 +280,8 @@ export interface components {
             startsAt: string;
             venueName: string;
             city: string;
+            venueLatitude?: number | null;
+            venueLongitude?: number | null;
             /** @enum {string} */
             status: "DRAFT" | "PUBLISHED";
             /**
@@ -446,6 +461,20 @@ export interface operations {
                 page?: components["parameters"]["Page"];
                 /** @description Items per page (maximum 50) */
                 size?: components["parameters"]["Size"];
+                /** @description Part of the title, ignoring case. At most 100 characters; % and _ are ordinary characters. */
+                q?: string;
+                /** @description The whole city name, ignoring case */
+                city?: string;
+                /** @description Events that start at or after this time (ISO 8601 in UTC with a trailing Z) */
+                from?: string;
+                /** @description Events that start before this time (exclusive); must be after from */
+                to?: string;
+                /** @description Latitude of the visitor, -90 to 90. Needs nearLongitude. */
+                nearLatitude?: number;
+                /** @description Longitude of the visitor, -180 to 180. Needs nearLatitude. */
+                nearLongitude?: number;
+                /** @description How far to look, in kilometres. Only with nearLatitude and nearLongitude. */
+                radiusKm?: number;
             };
             header?: never;
             path?: never;
