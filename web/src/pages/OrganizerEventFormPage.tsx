@@ -13,7 +13,10 @@ import {
   type EventFormErrors,
   type EventFormValues,
 } from '../organizer/eventForm';
+import { LayoutSection } from '../organizer/LayoutSection';
+import { LayoutSummary } from '../organizer/LayoutSummary';
 import { messageForOrganizerError, referenceFor } from '../organizer/messages';
+import { PublishPanel } from '../organizer/PublishPanel';
 
 /** Creates a draft event, or edits one of the organizer's own (the address says which). */
 export function OrganizerEventFormPage() {
@@ -21,11 +24,20 @@ export function OrganizerEventFormPage() {
   const store = useSessionStore();
   // Saving changes the event's version, which restarts the form; the page remembers the save so "Saved." survives that.
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+  const [layoutDirty, setLayoutDirty] = useState(false);
+  // Reloading after a change made elsewhere restarts the forms with the fresh data.
+  const [reloadCount, setReloadCount] = useState(0);
   const { data, error, isPending, refetch } = useQuery({
     queryKey: ['my-event', eventId],
     queryFn: () => getMyEvent((input, init) => store.authorizedFetch(input, init), eventId ?? ''),
     enabled: eventId !== undefined,
   });
+
+  async function reload() {
+    await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ['my-layout', eventId] })]);
+    setReloadCount((count) => count + 1);
+  }
 
   if (eventId === undefined) {
     return (
@@ -57,11 +69,25 @@ export function OrganizerEventFormPage() {
     <>
       <h1>Edit event</h1>
       <EventForm
-        key={`${data.id}-${data.version}`}
+        key={`${data.id}-${reloadCount}`}
         event={data}
         saved={savedVersion === data.version}
         onSaved={setSavedVersion}
+        onReload={() => void reload()}
       />
+      {data.status === 'PUBLISHED' ? (
+        <LayoutSummary eventId={data.id} />
+      ) : (
+        <>
+          <LayoutSection
+            key={`layout-${reloadCount}`}
+            event={data}
+            onDirtyChange={setLayoutDirty}
+            onReload={() => void reload()}
+          />
+          <PublishPanel event={data} layoutDirty={layoutDirty} onReload={() => void reload()} />
+        </>
+      )}
     </>
   );
 }
@@ -70,10 +96,12 @@ function EventForm({
   event,
   saved = false,
   onSaved = () => undefined,
+  onReload = () => undefined,
 }: {
   event?: EventDetail;
   saved?: boolean;
   onSaved?: (version: number | null) => void;
+  onReload?: () => void;
 }) {
   const store = useSessionStore();
   const navigate = useNavigate();
@@ -170,10 +198,7 @@ function EventForm({
             </p>
           )}
           {failure instanceof ApiError && failure.code === 'PRECONDITION_FAILED' && event && (
-            <button
-              type="button"
-              onClick={() => void queryClient.invalidateQueries({ queryKey: ['my-event', event.id] })}
-            >
+            <button type="button" onClick={onReload}>
               Reload the event
             </button>
           )}
