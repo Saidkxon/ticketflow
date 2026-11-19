@@ -12,6 +12,10 @@ export function messageForOrganizerError(error: unknown): string {
         return 'This event was not found.';
       case 'PRECONDITION_FAILED':
         return 'Someone else changed this event after you opened it. Reload to see the latest version, then make your change again.';
+      case 'EVENT_NOT_READY':
+        return 'The event is not ready to publish. It needs a saved seating layout and a start time in the future.';
+      case 'EVENT_ALREADY_PUBLISHED':
+        return 'This event is already published.';
       case 'EVENT_NOT_EDITABLE':
         return 'This event is published and can no longer be edited.';
       case 'INVALID_REQUEST':

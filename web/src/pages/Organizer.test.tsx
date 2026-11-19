@@ -27,6 +27,13 @@ function problem(status: number, code: string, errors?: { field: string; problem
   return json(status, { status, code, title: code, errors });
 }
 
+const NO_LAYOUT = { currency: null, priceTiers: [], sections: [], totalSeats: 0 };
+
+/** The event page also reads the event's layout; this answers it with an empty one. */
+function eventAndEmptyLayout(event: EventDetail, call: Call): Response {
+  return json(200, call.url.endsWith('/layout') ? NO_LAYOUT : event);
+}
+
 const DRAFT: EventDetail = {
   id: 'e1',
   title: 'Jazz Night',
@@ -172,7 +179,7 @@ describe('creating an event', () => {
       if (call.method === 'POST') {
         return json(201, { ...DRAFT, version: 0, venueLatitude: null, venueLongitude: null });
       }
-      return json(200, { ...DRAFT, version: 0 });
+      return eventAndEmptyLayout({ ...DRAFT, version: 0 }, call);
     };
     renderAs(['ORGANIZER'], '/organizer/events/new');
 
@@ -195,7 +202,7 @@ describe('creating an event', () => {
   });
 
   it('sends the venue coordinates as numbers', async () => {
-    handler = (call) => (call.method === 'POST' ? json(201, DRAFT) : json(200, DRAFT));
+    handler = (call) => (call.method === 'POST' ? json(201, DRAFT) : eventAndEmptyLayout(DRAFT, call));
     renderAs(['ORGANIZER'], '/organizer/events/new');
 
     await screen.findByRole('heading', { name: 'New event' });
@@ -227,7 +234,8 @@ describe('creating an event', () => {
 
 describe('editing an event', () => {
   it('loads the event into the form and saves with the version it loaded', async () => {
-    handler = (call) => (call.method === 'PUT' ? json(200, { ...DRAFT, title: 'Jazz Night 2', version: 4 }) : json(200, DRAFT));
+    handler = (call) =>
+      call.method === 'PUT' ? json(200, { ...DRAFT, title: 'Jazz Night 2', version: 4 }) : eventAndEmptyLayout(DRAFT, call);
     renderAs(['ORGANIZER'], '/organizer/events/e1');
 
     expect(await screen.findByLabelText('Title')).toHaveValue('Jazz Night');
@@ -244,7 +252,7 @@ describe('editing an event', () => {
   });
 
   it('explains a change made elsewhere and offers to reload', async () => {
-    handler = (call) => (call.method === 'PUT' ? problem(412, 'PRECONDITION_FAILED') : json(200, DRAFT));
+    handler = (call) => (call.method === 'PUT' ? problem(412, 'PRECONDITION_FAILED') : eventAndEmptyLayout(DRAFT, call));
     renderAs(['ORGANIZER'], '/organizer/events/e1');
 
     await screen.findByLabelText('Title');
@@ -255,11 +263,11 @@ describe('editing an event', () => {
   });
 
   it('shows a published event read-only', async () => {
-    handler = () => json(200, { ...DRAFT, status: 'PUBLISHED', version: 5 });
+    handler = (call) => eventAndEmptyLayout({ ...DRAFT, status: 'PUBLISHED', version: 5 }, call);
     renderAs(['ORGANIZER'], '/organizer/events/e1');
 
     expect(await screen.findByLabelText('Title')).toBeDisabled();
-    expect(screen.getByRole('status')).toHaveTextContent(/published/);
+    expect(screen.getByText(/This event is published/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument();
   });
 

@@ -5,6 +5,8 @@ import { toApiError } from './problem';
 export type EventDetail = components['schemas']['EventDetail'];
 export type MyEventPage = components['schemas']['MyEventPage'];
 export type SaveEventRequest = components['schemas']['SaveEventRequest'];
+export type LayoutDetail = components['schemas']['LayoutDetail'];
+export type LayoutRequest = components['schemas']['LayoutRequest'];
 
 /** fetch with the access token; the session store provides it (ADR-0004). */
 export type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
@@ -49,6 +51,42 @@ export async function updateEvent(
       method: 'PUT',
       headers: { ...JSON_HEADERS, 'If-Match': ifMatch(version) },
       body: JSON.stringify(body),
+    }),
+  );
+}
+
+/** The version in an ETag header such as "7", or null when there is none. */
+export function versionFromEtag(etag: string | null): number | null {
+  const match = etag === null ? null : /^"(\d{1,18})"$/.exec(etag);
+  return match === null ? null : Number(match[1]);
+}
+
+export async function getMyLayout(fetcher: Fetcher, eventId: string): Promise<LayoutDetail> {
+  return readJson<LayoutDetail>(await fetcher(`/api/v1/events/mine/${encodeURIComponent(eventId)}/layout`));
+}
+
+/** Saving a layout is a change of the event: the version goes up, and the new one comes back in the ETag. */
+export async function saveLayout(
+  fetcher: Fetcher,
+  eventId: string,
+  version: number,
+  body: LayoutRequest,
+): Promise<{ layout: LayoutDetail; version: number }> {
+  const response = await fetcher(`/api/v1/events/${encodeURIComponent(eventId)}/layout`, {
+    method: 'PUT',
+    headers: { ...JSON_HEADERS, 'If-Match': ifMatch(version) },
+    body: JSON.stringify(body),
+  });
+  const saved = await readJson<LayoutDetail>(response);
+  return { layout: saved, version: versionFromEtag(response.headers.get('ETag')) ?? version + 1 };
+}
+
+/** Freezes the layout and the prices and makes the event public. It cannot be undone. */
+export async function publishEvent(fetcher: Fetcher, eventId: string, version: number): Promise<EventDetail> {
+  return readJson<EventDetail>(
+    await fetcher(`/api/v1/events/${encodeURIComponent(eventId)}/publish`, {
+      method: 'POST',
+      headers: { 'If-Match': ifMatch(version) },
     }),
   );
 }
