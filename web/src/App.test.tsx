@@ -6,18 +6,20 @@ import { App } from './App';
 import { ApiError } from './api/problem';
 import { SessionProvider } from './auth/SessionContext';
 import { createSessionStore } from './auth/sessionStore';
-import { ADA, fakeApi, token, type FakeApi } from './test/fakeApi';
+import { ADA, answeredConsentResponse, fakeApi, token, type FakeApi } from './test/fakeApi';
 
 beforeEach(() => {
   // The home page lists events; an empty list is enough here.
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockImplementation(() =>
+    vi.fn().mockImplementation((input: string) =>
       Promise.resolve(
-        new Response(JSON.stringify({ items: [], page: 0, size: 20, totalItems: 0 }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        input.startsWith('/api/v1/location/consent')
+          ? answeredConsentResponse()
+          : new Response(JSON.stringify({ items: [], page: 0, size: 20, totalItems: 0 }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
       ),
     ),
   );

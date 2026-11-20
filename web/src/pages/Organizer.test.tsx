@@ -7,7 +7,7 @@ import type { User } from '../api/auth';
 import type { EventDetail } from '../api/organizer';
 import { SessionProvider } from '../auth/SessionContext';
 import { createSessionStore } from '../auth/sessionStore';
-import { ADA, fakeApi, token } from '../test/fakeApi';
+import { ADA, answeredConsentResponse, fakeApi, token } from '../test/fakeApi';
 
 interface Call {
   url: string;
@@ -52,6 +52,9 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn().mockImplementation((input: string, init?: RequestInit) => {
+      if (input.startsWith('/api/v1/location/')) {
+        return Promise.resolve(answeredConsentResponse()); // the location gate; not part of what these tests record
+      }
       const call: Call = {
         url: input,
         method: init?.method ?? 'GET',

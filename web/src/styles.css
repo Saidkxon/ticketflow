@@ -123,3 +123,30 @@ td {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  text-decoration: underline;
+  color: inherit;
+}
+
+fieldset {
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  margin: 0 0 0.75rem;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: normal;
+}
