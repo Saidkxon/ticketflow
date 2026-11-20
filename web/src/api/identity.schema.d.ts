@@ -169,6 +169,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/location/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in user's answer to the location question
+         * @description `level` is empty until the person answers. `needsAnswer` is true when there is no answer yet, or
+         *     it was given for an older consent text (`textVersion` differs from `currentTextVersion`): the web app
+         *     then shows the consent screen again (ADR-0015).
+         */
+        get: operations["getLocationConsent"];
+        /**
+         * Save the answer (FULL, MINIMUM or OFF)
+         * @description FULL keeps position history 30 days, MINIMUM keeps it 5 days, OFF keeps nothing. Choosing OFF deletes the
+         *     whole history at once; choosing MINIMUM deletes points older than 5 days at once. `textVersion` is the
+         *     version of the consent text the person saw; if it is not the current one the answer is refused with 409
+         *     `CONSENT_TEXT_OUTDATED`. The request is naturally idempotent: the same answer twice leaves the same state.
+         */
+        put: operations["answerLocationConsent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/location/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send one position of the signed-in user
+         * @description Needs a current FULL or MINIMUM answer, otherwise 403 `LOCATION_CONSENT_REQUIRED`. The browser sends a
+         *     point when the person has moved about 200 m and at most once a minute. A point recorded less than
+         *     30 seconds after the previous stored one (or before it) is ignored with 202: not an error. The user comes
+         *     from the token. Coordinates are never written to logs, metrics or events. This request has no
+         *     `Idempotency-Key`: a repeated point inside 30 seconds is ignored by design.
+         */
+        post: operations["sendPosition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/location/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Newest position of every user who consents to tracking (Admin only)
+         * @description Needs the role `ADMIN`. Users who said OFF, or never answered, are not listed. The read is written to the
+         *     access log (who, when, "everybody").
+         */
+        get: operations["listLatestPositions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/location/users/{userId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Position history of one tracked user (Admin only)
+         * @description Needs the role `ADMIN`. Newest first. The read is written to the access log (who, when, whose data).
+         *     An unknown user and a user who does not consent to tracking both answer 404 `LOCATION_NOT_AVAILABLE`,
+         *     and nothing is logged for them.
+         */
+        get: operations["getUserLocationHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/.well-known/jwks.json": {
         parameters: {
             query?: never;
@@ -247,6 +343,64 @@ export interface components {
         };
         SetRolesRequest: {
             roles: components["schemas"]["Role"][];
+        };
+        /**
+         * @description FULL keeps history 30 days, MINIMUM 5 days, OFF keeps nothing.
+         * @enum {string}
+         */
+        LocationLevel: "FULL" | "MINIMUM" | "OFF";
+        LocationConsentRequest: {
+            level: components["schemas"]["LocationLevel"];
+            /** @description Version of the consent text the person saw */
+            textVersion: number;
+        };
+        LocationConsent: {
+            level?: components["schemas"]["LocationLevel"] | null;
+            textVersion?: number | null;
+            /** Format: date-time */
+            decidedAt?: string | null;
+            currentTextVersion: number;
+            needsAnswer: boolean;
+        };
+        PositionRequest: {
+            latitude: number;
+            longitude: number;
+            accuracyMeters: number;
+            /**
+             * Format: date-time
+             * @description When the browser read the position; not more than 60 seconds ahead of the server clock
+             */
+            recordedAt: string;
+        };
+        LatestPosition: {
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            /** @enum {string} */
+            level: "FULL" | "MINIMUM";
+            latitude: number;
+            longitude: number;
+            accuracyMeters: number;
+            /** Format: date-time */
+            recordedAt: string;
+        };
+        LatestPositions: {
+            items: components["schemas"]["LatestPosition"][];
+        };
+        HistoryPoint: {
+            latitude: number;
+            longitude: number;
+            accuracyMeters: number;
+            /** Format: date-time */
+            recordedAt: string;
+        };
+        UserLocationHistory: {
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            /** @enum {string} */
+            level: "FULL" | "MINIMUM";
+            items: components["schemas"]["HistoryPoint"][];
         };
         JsonWebKeySet: {
             keys: {
@@ -614,6 +768,180 @@ export interface operations {
             };
             /** @description The user was changed by someone else at the same moment. Code CONFLICT. Try again. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    getLocationConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored answer */
+            200: {
+                headers: {
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationConsent"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    answerLocationConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description The stored answer */
+            200: {
+                headers: {
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationConsent"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description The consent text has changed. Code CONSENT_TEXT_OUTDATED. Show the current text and ask again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    sendPosition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PositionRequest"];
+            };
+        };
+        responses: {
+            /** @description The point was stored */
+            201: {
+                headers: {
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The point was ignored because it came too soon after the previous one */
+            202: {
+                headers: {
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Location tracking is not switched on for this account (no answer, OFF, or an answer for an older text). Code LOCATION_CONSENT_REQUIRED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    listLatestPositions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per tracked user that has at least one point */
+            200: {
+                headers: {
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LatestPositions"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    getUserLocationHistory: {
+        parameters: {
+            query?: {
+                /** @description Only points recorded at or after this time */
+                from?: string;
+                /** @description Only points recorded before this time (exclusive); must be after `from` */
+                to?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user's points */
+            200: {
+                headers: {
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserLocationHistory"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description No location data for this user. Code LOCATION_NOT_AVAILABLE. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
