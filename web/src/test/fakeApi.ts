@@ -26,3 +26,11 @@ export function fakeApi(): FakeApi {
   };
   return api;
 }
+
+/** The answer of GET /api/v1/location/consent for a person who already chose Full. Other tests stub fetch with it. */
+export function answeredConsentResponse(): Response {
+  return new Response(
+    JSON.stringify({ level: 'FULL', textVersion: 1, decidedAt: '2026-11-20T10:00:00Z', currentTextVersion: 1, needsAnswer: false }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
+}

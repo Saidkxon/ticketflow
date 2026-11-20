@@ -1,4 +1,5 @@
 import { useSessionState } from '../auth/SessionContext';
+import { LocationSettings } from '../location/LocationSettings';
 
 export function AccountPage() {
   const session = useSessionState();
@@ -17,6 +18,7 @@ export function AccountPage() {
         <dt>Roles</dt>
         <dd>{user.roles.join(', ')}</dd>
       </dl>
+      <LocationSettings />
     </>
   );
 }

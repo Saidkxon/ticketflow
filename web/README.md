@@ -34,6 +34,12 @@ Pages: `/login`, `/register`, and `/account` (only for a signed-in user; anybody
 - The browser must accept the `Secure` refresh cookie. Chrome, Edge and Firefox accept it on `http://localhost`; Safari does not, and neither does an address like `http://192.168.x.x`. Use https or localhost.
 - The pages show messages for known error `code`s and a reference (the correlation ID) when the server gave one.
 
+## Location question
+
+After registration and every login the app shows the location question (ADR-0015) before any page. The person must choose **Full** (history kept 30 days) or **Minimum** (5 days); there is no "No", and the browser must allow location access as well, otherwise the app stays blocked behind an explanation with a "Try again" button. The account page switches between Full and Minimum. While the app is open and permitted, `src/location/usePositionSender.ts` sends a point when the person has moved about 200 m and a minute has passed since the last one.
+
+The one switch that brings a "Not now" link back is the build setting `VITE_LOCATION_ALLOW_NOT_NOW=true` (default `false`; `src/location/config.ts`). With `npm run dev`, put it in `web/.env.local`. For the containers, put it in `deploy/.env` and rebuild the web image. The consent text and its version are in `src/location/consentText.tsx`; raise the version there and in Identity's `ticketflow.identity.location.consent-text-version` together to ask everybody again. Browsers only offer location on `https://` addresses and on `localhost`.
+
 ## Checks (the same ones CI runs)
 
 ```

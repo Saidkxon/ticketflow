@@ -6,3 +6,18 @@ import { afterEach } from 'vitest';
 afterEach(() => {
   cleanup();
 });
+
+// jsdom has no geolocation. By default a test gets a browser that allows location and never reports a movement, so a
+// signed-in user passes the location gate and nothing is sent. A test that needs another behavior replaces these.
+Object.defineProperty(navigator, 'geolocation', {
+  configurable: true,
+  value: {
+    getCurrentPosition: (success: PositionCallback) =>
+      success({
+        coords: { latitude: 41.3, longitude: 69.2, accuracy: 10 },
+        timestamp: 1_000_000,
+      } as GeolocationPosition),
+    watchPosition: () => 1,
+    clearWatch: () => undefined,
+  },
+});

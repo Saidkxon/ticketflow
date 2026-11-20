@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useSessionState, useSessionStore } from './auth/SessionContext';
+import { LocationGate } from './location/LocationGate';
 
 export function Layout() {
   const session = useSessionState();
@@ -41,7 +42,14 @@ export function Layout() {
         </nav>
       </header>
       <main>
-        <Outlet />
+        {session.status === 'signedIn' ? (
+          // One gate per signed-in user: the location question comes before any page (ADR-0015).
+          <LocationGate key={session.user.id}>
+            <Outlet />
+          </LocationGate>
+        ) : (
+          <Outlet />
+        )}
       </main>
     </>
   );

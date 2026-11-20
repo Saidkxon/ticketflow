@@ -116,6 +116,9 @@ services:
     profiles: ["app"]
     build:
       context: ../web
+      args:
+        # The location question cannot be skipped unless this is exactly "true" (ADR-0015). It is baked into the build.
+        VITE_LOCATION_ALLOW_NOT_NOW: ${VITE_LOCATION_ALLOW_NOT_NOW:-false}
     restart: unless-stopped
     depends_on:
       gateway:
