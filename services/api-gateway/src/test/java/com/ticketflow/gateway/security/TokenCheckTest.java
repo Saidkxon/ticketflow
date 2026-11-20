@@ -106,6 +106,33 @@ class TokenCheckTest {
     }
 
     @Test
+    void locationPathsNeedATokenAndAreRouted() throws Exception {
+        String id = UUID.randomUUID().toString();
+        String address = nextAddress();
+        String[][] calls = {
+                {"GET", "/api/v1/location/consent"}, {"PUT", "/api/v1/location/consent"},
+                {"POST", "/api/v1/location/positions"}, {"GET", "/api/v1/admin/location/latest"},
+                {"GET", "/api/v1/admin/location/users/" + id + "/history?limit=5"}};
+
+        for (String[] call : calls) {
+            assertThat(send(call[0], call[1], null, address).statusCode()).as(call[0] + " " + call[1]).isEqualTo(401);
+        }
+        assertThat(receivedUri).isNull();
+
+        String token = TokenFixtures.token(KEY, UUID.randomUUID());
+        assertThat(send("GET", "/api/v1/admin/location/users/" + id + "/history?limit=5", token, address)
+                .statusCode()).isEqualTo(200);
+        assertThat(receivedUri).isEqualTo("/api/v1/admin/location/users/" + id + "/history?limit=5");
+        assertThat(send("POST", "/api/v1/location/positions", token, address).statusCode()).isEqualTo(200);
+        assertThat(receivedUri).isEqualTo("/api/v1/location/positions");
+    }
+
+    @Test
+    void aNewAdminPathThatIsNotRoutedStillNeedsAToken() throws Exception {
+        assertThat(send("GET", "/api/v1/admin/something-new", null, null).statusCode()).isEqualTo(401);
+    }
+
+    @Test
     void badTokensGetTheSamePlain401AndNoServiceIsCalled() throws Exception {
         UUID user = UUID.randomUUID();
         String[] bad = {

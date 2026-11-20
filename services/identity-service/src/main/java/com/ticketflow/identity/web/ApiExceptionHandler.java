@@ -3,6 +3,9 @@ package com.ticketflow.identity.web;
 import com.ticketflow.identity.auth.EmailAlreadyRegisteredException;
 import com.ticketflow.identity.auth.InvalidCredentialsException;
 import com.ticketflow.identity.auth.TooManyAttemptsException;
+import com.ticketflow.identity.location.ConsentTextOutdatedException;
+import com.ticketflow.identity.location.LocationConsentRequiredException;
+import com.ticketflow.identity.location.LocationNotAvailableException;
 import com.ticketflow.identity.sessions.InvalidRefreshTokenException;
 import com.ticketflow.identity.sessions.RefreshCookies;
 import com.ticketflow.identity.sessions.RequestOriginNotAllowedException;
@@ -118,6 +121,33 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No such user.");
         problem.setTitle("User not found");
         enrich(problem, "USER_NOT_FOUND");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(LocationConsentRequiredException.class)
+    public ResponseEntity<ProblemDetail> handleLocationConsentRequired(LocationConsentRequiredException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN, "Location tracking is not switched on for this account.");
+        problem.setTitle("Location consent required");
+        enrich(problem, "LOCATION_CONSENT_REQUIRED");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(ConsentTextOutdatedException.class)
+    public ResponseEntity<ProblemDetail> handleConsentTextOutdated(ConsentTextOutdatedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, "The consent text has changed. Show the current text and ask again.");
+        problem.setTitle("Consent text outdated");
+        enrich(problem, "CONSENT_TEXT_OUTDATED");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(LocationNotAvailableException.class)
+    public ResponseEntity<ProblemDetail> handleLocationNotAvailable(LocationNotAvailableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, "No location data is available for this user.");
+        problem.setTitle("Location not available");
+        enrich(problem, "LOCATION_NOT_AVAILABLE");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 

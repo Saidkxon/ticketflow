@@ -18,7 +18,8 @@ info:
 
     **Error codes used by this API:** `INVALID_REQUEST`, `EMAIL_ALREADY_REGISTERED`,
     `INVALID_CREDENTIALS`, `INVALID_REFRESH_TOKEN`, `REQUEST_ORIGIN_NOT_ALLOWED`, `UNAUTHENTICATED`,
-    `FORBIDDEN`, `USER_NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
+    `FORBIDDEN`, `USER_NOT_FOUND`, `LOCATION_CONSENT_REQUIRED`, `CONSENT_TEXT_OUTDATED`,
+    `LOCATION_NOT_AVAILABLE`, `CONFLICT`, `RATE_LIMITED`, `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
 
     **No idempotency key.** ADR-0009 requires `Idempotency-Key` on create-style requests made by a
     signed-in user. Registration is anonymous and already protected by the unique email, so it is
@@ -31,6 +32,10 @@ tags:
     description: Registration, login, token refresh and logout
   - name: users
     description: The signed-in user and role management
+  - name: location
+    description: Location consent and positions of the signed-in user (ADR-0015)
+  - name: admin-location
+    description: Admin-only reads of location data, each one written to an access log (ADR-0015)
   - name: keys
     description: Public signing keys
 
@@ -334,6 +339,216 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
 
+  /location/consent:
+    get:
+      tags: [location]
+      operationId: getLocationConsent
+      summary: The signed-in user's answer to the location question
+      description: |
+        `level` is empty until the person answers. `needsAnswer` is true when there is no answer yet, or
+        it was given for an older consent text (`textVersion` differs from `currentTextVersion`): the web app
+        then shows the consent screen again (ADR-0015).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The stored answer
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationConsent'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    put:
+      tags: [location]
+      operationId: answerLocationConsent
+      summary: Save the answer (FULL, MINIMUM or OFF)
+      description: |
+        FULL keeps position history 30 days, MINIMUM keeps it 5 days, OFF keeps nothing. Choosing OFF deletes the
+        whole history at once; choosing MINIMUM deletes points older than 5 days at once. `textVersion` is the
+        version of the consent text the person saw; if it is not the current one the answer is refused with 409
+        `CONSENT_TEXT_OUTDATED`. The request is naturally idempotent: the same answer twice leaves the same state.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationConsentRequest'
+      responses:
+        '200':
+          description: The stored answer
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationConsent'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          description: The consent text has changed. Code CONSENT_TEXT_OUTDATED. Show the current text and ask again.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /location/positions:
+    post:
+      tags: [location]
+      operationId: sendPosition
+      summary: Send one position of the signed-in user
+      description: |
+        Needs a current FULL or MINIMUM answer, otherwise 403 `LOCATION_CONSENT_REQUIRED`. The browser sends a
+        point when the person has moved about 200 m and at most once a minute. A point recorded less than
+        30 seconds after the previous stored one (or before it) is ignored with 202: not an error. The user comes
+        from the token. Coordinates are never written to logs, metrics or events. This request has no
+        `Idempotency-Key`: a repeated point inside 30 seconds is ignored by design.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionRequest'
+      responses:
+        '201':
+          description: The point was stored
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+        '202':
+          description: The point was ignored because it came too soon after the previous one
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: Location tracking is not switched on for this account (no answer, OFF, or an answer for an older text). Code LOCATION_CONSENT_REQUIRED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /admin/location/latest:
+    get:
+      tags: [admin-location]
+      operationId: listLatestPositions
+      summary: Newest position of every user who consents to tracking (Admin only)
+      description: |
+        Needs the role `ADMIN`. Users who said OFF, or never answered, are not listed. The read is written to the
+        access log (who, when, "everybody").
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: One entry per tracked user that has at least one point
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LatestPositions'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /admin/location/users/{userId}/history:
+    get:
+      tags: [admin-location]
+      operationId: getUserLocationHistory
+      summary: Position history of one tracked user (Admin only)
+      description: |
+        Needs the role `ADMIN`. Newest first. The read is written to the access log (who, when, whose data).
+        An unknown user and a user who does not consent to tracking both answer 404 `LOCATION_NOT_AVAILABLE`,
+        and nothing is logged for them.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          description: Only points recorded at or after this time
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Only points recorded before this time (exclusive); must be after `from`
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+      responses:
+        '200':
+          description: The user's points
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLocationHistory'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No location data for this user. Code LOCATION_NOT_AVAILABLE.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
   /.well-known/jwks.json:
     get:
       tags: [keys]
@@ -517,6 +732,117 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/Role'
+    LocationLevel:
+      type: string
+      enum: [FULL, MINIMUM, OFF]
+      description: FULL keeps history 30 days, MINIMUM 5 days, OFF keeps nothing.
+    LocationConsentRequest:
+      type: object
+      required: [level, textVersion]
+      additionalProperties: false
+      properties:
+        level:
+          $ref: '#/components/schemas/LocationLevel'
+        textVersion:
+          type: integer
+          minimum: 1
+          description: Version of the consent text the person saw
+    LocationConsent:
+      type: object
+      required: [currentTextVersion, needsAnswer]
+      properties:
+        level:
+          oneOf:
+            - $ref: '#/components/schemas/LocationLevel'
+            - type: 'null'
+        textVersion:
+          type: [integer, 'null']
+        decidedAt:
+          type: [string, 'null']
+          format: date-time
+        currentTextVersion:
+          type: integer
+        needsAnswer:
+          type: boolean
+    PositionRequest:
+      type: object
+      required: [latitude, longitude, accuracyMeters, recordedAt]
+      additionalProperties: false
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        accuracyMeters:
+          type: number
+          minimum: 0
+          maximum: 100000
+        recordedAt:
+          type: string
+          format: date-time
+          description: When the browser read the position; not more than 60 seconds ahead of the server clock
+    LatestPosition:
+      type: object
+      required: [userId, displayName, level, latitude, longitude, accuracyMeters, recordedAt]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        level:
+          type: string
+          enum: [FULL, MINIMUM]
+        latitude:
+          type: number
+        longitude:
+          type: number
+        accuracyMeters:
+          type: number
+        recordedAt:
+          type: string
+          format: date-time
+    LatestPositions:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LatestPosition'
+    HistoryPoint:
+      type: object
+      required: [latitude, longitude, accuracyMeters, recordedAt]
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        accuracyMeters:
+          type: number
+        recordedAt:
+          type: string
+          format: date-time
+    UserLocationHistory:
+      type: object
+      required: [userId, displayName, level, items]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        level:
+          type: string
+          enum: [FULL, MINIMUM]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryPoint'
     JsonWebKeySet:
       type: object
       required: [keys]

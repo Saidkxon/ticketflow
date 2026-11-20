@@ -52,6 +52,24 @@ class RoutesConfig {
     }
 
     /**
+     * Location tracking (ADR-0015): the signed-in user's consent and positions, and the Admin reads of other
+     * people's positions. The gateway checks that a valid token is present (BearerTokenFilter); Identity checks it
+     * again and decides about the Admin role. Query strings (the history time range) pass through unchanged.
+     */
+    @Bean
+    RouterFunction<ServerResponse> identityLocationRoutes(
+            @Value("${ticketflow.gateway.identity-uri}") String identityUri) {
+        return route("identity-location")
+                .GET("/api/v1/location/consent", http())
+                .PUT("/api/v1/location/consent", http())
+                .POST("/api/v1/location/positions", http())
+                .GET("/api/v1/admin/location/latest", http())
+                .GET("/api/v1/admin/location/users/{userId}/history", http())
+                .before(uri(identityUri))
+                .build();
+    }
+
+    /**
      * Registration, login, refresh and logout go to the Identity service (contracts/identity.openapi.yaml).
      * The Cookie, Origin and X-TicketFlow-Client request headers and the Set-Cookie response header
      * pass through unchanged: the refresh cookie belongs to Identity. The public keys path is never routed.

@@ -88,6 +88,7 @@ More specific routes are matched before general ones.
 |---|---|---|
 | `/api/v1/auth/**` (register, login, refresh, logout) | Identity | No (rate limited) |
 | `/api/v1/users/**` | Identity | Yes |
+| `/api/v1/location/**`, `/api/v1/admin/**` (location consent, positions, Admin reads) | Identity | Yes |
 | `/api/v1/events/*/holds`, `/api/v1/events/*/availability` | Booking | Holds: yes; availability: no |
 | `/api/v1/events/**` (everything else under events) | Catalog | Reads: no; writes: yes |
 | `/api/v1/bookings/**` | Booking | Yes |
@@ -182,3 +183,4 @@ More specific routes are matched before general ones.
 - **2026-11-17, the events paths and the token check.** The route table row "events: reads no token, writes yes" is built as a rule in `BearerTokenFilter`: under `/api/v1/events` every request that is not a plain GET or HEAD needs a valid token, and so does `GET /api/v1/events/mine` (the organizer's own events, drafts included). The gateway routes `POST /events` and `PUT /events/{id}`; any other write method is refused with 401 without a token and 404 or 405 with one, and nothing reaches Catalog. Catalog checks the token and the `ORGANIZER` role again (ADR-0004). The gateway forwards `If-Match` and returns `ETag` and `Location` unchanged.
 - **2026-11-17, the "mine" area.** Everything under `/api/v1/events/mine` (the organizer's own events, one event and its layout) is private: it needs a token even though it is only read. `PUT /api/v1/events/{eventId}/layout` is routed like the other organizer writes.
 - **2026-11-17, publish route.** The gateway routes `POST /api/v1/events/{eventId}/publish` like the other organizer writes (token required at the gateway, checked again with the ORGANIZER role in Catalog). `GET /api/v1/events/{eventId}/layout` is public and covered by the existing `GET /api/v1/events/**` route.
+- **2026-11-19, location paths (ADR-0015).** `BearerTokenFilter.PROTECTED_PREFIXES` now lists `/api/v1/users`, `/api/v1/location` and `/api/v1/admin`, so a new path under them needs a token even before it is routed. Routed to Identity: `GET` and `PUT /location/consent`, `POST /location/positions`, `GET /admin/location/latest` and `GET /admin/location/users/{userId}/history`. Identity decides about the Admin role.
