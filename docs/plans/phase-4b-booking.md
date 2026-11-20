@@ -28,7 +28,7 @@ Runs after PR 5b, because it needs the web app's sign-in and settings. It delays
 
 | # | Pull request | Delivers |
 |---|---|---|
-| L1 | Identity: location data | Consent levels, position history, retention job (5 days Minimum, 30 days Full), access log, administrator read endpoints, gateway paths, contract. |
+| L1 | Identity: location data (PR in review, 2026-11-19) | Consent levels, position history, retention job (5 days Minimum, 30 days Full), access log, administrator read endpoints, gateway paths, contract. |
 | L2 | Web: consent and sending | Consent screen after registration and login (with the `VITE_LOCATION_ALLOW_NOT_NOW` switch), settings switch, position sender (200 m, once a minute). |
 | L3 | Web: administrator map | Google Maps component with markers and names, and the history of a user. |
 

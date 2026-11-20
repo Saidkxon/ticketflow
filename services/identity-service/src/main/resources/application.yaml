@@ -34,6 +34,13 @@ ticketflow:
     # The first Admin (ADR-0004): the user with this email gets the ADMIN role at startup. See deploy/README.md.
     bootstrap:
       admin-email: ${IDENTITY_BOOTSTRAP_ADMIN_EMAIL:}
+    # Location tracking (ADR-0015). Raise consent-text-version when the consent text in the web app changes.
+    location:
+      consent-text-version: 1
+      full-retention: 30d
+      minimum-retention: 5d
+      min-interval: 30s
+      max-clock-skew: 60s
     refresh:
       ttl: 7d
       cookie-secure: true

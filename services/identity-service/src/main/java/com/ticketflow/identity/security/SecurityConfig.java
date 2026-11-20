@@ -64,6 +64,10 @@ class SecurityConfig {
                         // Everything under /users except /me is Admin-only, so a future path is closed by default.
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/me").authenticated()
                         .requestMatchers("/api/v1/users", "/api/v1/users/**").hasRole("ADMIN")
+                        // Location (ADR-0015): consent and positions belong to the signed-in user; every read of other
+                        // people's positions is Admin-only, and everything new under /admin is closed by default.
+                        .requestMatchers("/api/v1/location/**").authenticated()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated());
         return http.build();
     }
