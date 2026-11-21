@@ -36,6 +36,8 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        // The outbox relay does not run by itself in tests: a test that needs it calls OutboxRelay.runOnce().
+        registry.add("ticketflow.catalog.outbox.schedule-enabled", () -> "false");
         registry.add("ticketflow.catalog.jwt.jwks-uri",
                 () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort() + "/.well-known/jwks.json");
     }

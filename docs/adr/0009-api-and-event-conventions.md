@@ -134,7 +134,7 @@ Every event on RabbitMQ (ADR-0003) is a JSON message with this envelope:
 ```
 
 - `eventId` is unique and is what consumers record to ignore duplicates (ADR-0003, rule 2). The same value is the outbox row's ID (ADR-0005).
-- `eventType` is **past tense and PascalCase** (ADR-0002). The routing key is the lowercase producer name and event name, for example `payment.payment-succeeded`.
+- `eventType` is **past tense and PascalCase** (ADR-0002). The routing key is the lowercase producer name and event name, for example `payment.payment-succeeded`. On the wire the message goes to the topic exchange `ticketflow.events` as a persistent JSON message whose AMQP `messageId` is the `eventId` (see `contracts/events/README.md`).
 - `data` stays **small and carries identifiers plus the minimum facts needed** (ADR-0003, rule 5). It contains **no personal data beyond identifiers**.
 - **Compatibility:** within one `eventVersion`, only **additive** changes are allowed, and consumers **ignore unknown fields**. A breaking change publishes a new `eventVersion`, and the producer sends both versions until every consumer has moved.
 - Each event has a JSON Schema in `contracts/events/`; the producer's tests and each consumer's tests validate against it.

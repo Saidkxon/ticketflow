@@ -27,6 +27,30 @@ services:
       timeout: 5s
       retries: 12
 
+  # The message broker (ADR-0003). It starts with the "app" profile, or alone with the "broker" profile when you run
+  # services from the IDE:  docker compose -f deploy/compose.yaml --profile broker up -d rabbitmq
+  rabbitmq:
+    profiles: ["app", "broker"]
+    image: rabbitmq:4.3.8-management
+    restart: unless-stopped
+    # A fixed host name: RabbitMQ keeps its data under a name made from it, so a recreated container finds its queues.
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ticketflow
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in deploy/.env}
+    ports:
+      # Both bound to this computer only, never to the network. 15673 is the broker, 15674 the management page.
+      - "127.0.0.1:${RABBITMQ_PORT:-15673}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15674}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
   # The applications run in containers only with the "app" profile; the default "up" starts just
   # the database, so services can still be run from the IDE. One command for everything:
   #   docker compose -f deploy/compose.yaml --profile app up -d --build --wait
@@ -42,6 +66,12 @@ services:
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?set CATALOG_DB_PASSWORD in deploy/.env}
       # Catalog checks access tokens itself and fetches Identity's public keys on first use (ADR-0004).
       IDENTITY_URI: http://identity:18082
+      # The outbox relay publishes Catalog's events to the broker. Catalog does not wait for the broker to start:
+      # events stay in the outbox until it is reachable (ADR-0003, rule 1).
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ticketflow
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in deploy/.env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -136,3 +166,4 @@ services:
 
 volumes:
   postgres-data:
+  rabbitmq-data:

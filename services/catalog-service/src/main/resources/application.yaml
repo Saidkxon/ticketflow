@@ -12,6 +12,18 @@ spring:
       maximum-pool-size: 5
       connection-timeout: 3000
 
+  # The message broker (ADR-0003). The password has no default, like the database password (NFR-7). Publisher confirms
+  # and "mandatory" let the outbox relay know that the broker took a message and that a queue received it.
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:15673}
+    username: ${RABBITMQ_USER:ticketflow}
+    password: ${RABBITMQ_PASSWORD}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+
   # A request body with a field we do not know is rejected, so nobody can slip in a field such as "ownerId".
   jackson:
     deserialization:
@@ -36,6 +48,11 @@ management:
       group:
         readiness:
           include: readinessState,db
+  # The broker is deliberately not part of readiness: when it is down, Catalog still serves its reads and writes, and the
+  # outbox keeps the events until it is back (ADR-0003, rule 1).
+  health:
+    rabbit:
+      enabled: false
 
 logging:
   pattern:
@@ -45,5 +62,8 @@ logging:
 # container network only, so Catalog starts even when Identity is not up yet.
 ticketflow:
   catalog:
+    # The outbox relay publishes the events written by Catalog to the broker (ADR-0003). Defaults are in OutboxProperties.
+    outbox:
+      exchange: ticketflow.events
     jwt:
       jwks-uri: ${IDENTITY_URI:http://localhost:18082}/.well-known/jwks.json

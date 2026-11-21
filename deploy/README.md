@@ -38,6 +38,16 @@ Open http://localhost:18090 in the browser (set `WEB_PORT` in `deploy/.env` to c
 
 This is the local setup. Which component serves the app in production is decided at the deployment gate (ADR-0013, G10).
 
+## The message broker (RabbitMQ)
+
+The broker (ADR-0003) starts together with the applications (`--profile app`), or alone with `docker compose -f deploy/compose.yaml --profile broker up -d rabbitmq` when you run services from the IDE. Add its password to `deploy/.env` once:
+
+    echo "RABBITMQ_PASSWORD=$(openssl rand -hex 12)" >> deploy/.env
+
+The broker listens on `127.0.0.1:15673` (`RABBITMQ_PORT` changes it) and its management page is at http://localhost:15674 (`RABBITMQ_MANAGEMENT_PORT`). Sign in with user `ticketflow` and that password. Queues and messages are kept in the `rabbitmq-data` volume.
+
+Catalog does not need the broker to start or to answer requests. It writes events to its own outbox table, and a relay publishes them to the exchange `ticketflow.events` (see `contracts/events/README.md`). While nobody has bound a queue for an event, or while the broker is down, the events wait in the outbox and are sent as soon as they can be received.
+
 ## Signing keys for access tokens
 
 The Identity service signs access tokens (JWT) with an RSA key that it reads from a directory (ADR-0004). Every file `NAME.pem` in that directory is one key with the ID `NAME`; the key named by `IDENTITY_JWT_SIGNING_KEY_ID` signs new tokens, and all of them are published (public part only) at `/.well-known/jwks.json` so tokens can be checked. The format is PKCS#8 PEM (`-----BEGIN PRIVATE KEY-----`), at least 2048 bits. A missing directory, key or key ID stops the service at startup with a message that says what is wrong.
@@ -68,5 +78,7 @@ Services use high ports because Windows reserves some low ranges (for example 80
 | booking-service | 18083 | 19083 |
 | payment-service | 18084 | 19084 |
 | notification-service | 18085 | 19085 |
+
+The broker uses 15673 (AMQP) and 15674 (management page), also high ports for the same reason.
 
 To change a port without editing code, set `SERVER_PORT` or `MANAGEMENT_SERVER_PORT` in the environment. To see which ports Windows reserves: `netsh interface ipv4 show excludedportrange protocol=tcp`.
