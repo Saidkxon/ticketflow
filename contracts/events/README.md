@@ -13,6 +13,8 @@ Every event is one JSON message, described by a JSON Schema file in this folder 
 | Queues | Owned by the **consumer**. A consumer declares its own durable queue, binds it to the routing keys it needs, and also owns its dead-letter queue. Producers never declare consumer queues. |
 | No queue yet | If no queue is bound to the routing key, the broker returns the message. The producer keeps it in its outbox and retries, so a consumer that starts later still receives it. |
 
-| Event | Producer | Routing key | Schema |
-|---|---|---|---|
-| LayoutPublished | Catalog | `catalog.layout-published` | [layout-published.v1.schema.json](layout-published.v1.schema.json) |
+| Event | Producer | Routing key | Schema | Consumer queue |
+|---|---|---|---|---|
+| LayoutPublished | Catalog | `catalog.layout-published` | [layout-published.v1.schema.json](layout-published.v1.schema.json) | `booking.catalog.layout-published` (Booking), with `.retry` and `.dlq` next to it |
+
+A consumer names its queue `<consumer>.<routing key>`, and its retry and dead-letter queues by adding `.retry` and `.dlq`.

@@ -48,6 +48,16 @@ The broker listens on `127.0.0.1:15673` (`RABBITMQ_PORT` changes it) and its man
 
 Catalog does not need the broker to start or to answer requests. It writes events to its own outbox table, and a relay publishes them to the exchange `ticketflow.events` (see `contracts/events/README.md`). While nobody has bound a queue for an event, or while the broker is down, the events wait in the outbox and are sent as soon as they can be received.
 
+### When an event does not go on sale
+
+Booking builds the seats of a newly published event from a message. If Catalog is unreachable for longer than about two minutes, or the message is faulty, Booking parks it in the queue `booking.catalog.layout-published.dlq` instead of losing it. To put the event on sale after the cause is fixed:
+
+1. Open the management page (http://localhost:15674), then Queues and Streams, then `booking.catalog.layout-published.dlq`, then Get messages. Copy the payload (the `failure` header says what went wrong).
+2. Open the exchange `ticketflow.events`, then Publish message. Routing key `catalog.layout-published`, paste the payload, and publish.
+3. Back in the dead-letter queue, click Purge Messages.
+
+To see what Booking has built for an event: `select count(*) from event_seats where event_id = '<the event ID>'` in the `booking` database.
+
 ## Signing keys for access tokens
 
 The Identity service signs access tokens (JWT) with an RSA key that it reads from a directory (ADR-0004). Every file `NAME.pem` in that directory is one key with the ID `NAME`; the key named by `IDENTITY_JWT_SIGNING_KEY_ID` signs new tokens, and all of them are published (public part only) at `/.well-known/jwks.json` so tokens can be checked. The format is PKCS#8 PEM (`-----BEGIN PRIVATE KEY-----`), at least 2048 bits. A missing directory, key or key ID stops the service at startup with a message that says what is wrong.

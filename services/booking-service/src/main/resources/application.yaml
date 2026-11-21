@@ -12,6 +12,23 @@ spring:
       maximum-pool-size: 10
       connection-timeout: 3000
 
+  # The message broker (ADR-0003). The password has no default, like the database password (NFR-7). Publisher confirms
+  # and "mandatory" let Booking know that the broker took a message it parks in the dead-letter queue.
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:15673}
+    username: ${RABBITMQ_USER:ticketflow}
+    password: ${RABBITMQ_PASSWORD}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        # A failing message is never put straight back at the front of the queue (that would spin). The listener
+        # decides: retry later through the retry queue, or park it in the dead-letter queue.
+        default-requeue-rejected: false
+
   # A request body with a field we do not know is rejected.
   jackson:
     deserialization:
@@ -21,8 +38,8 @@ server:
   port: 18083
 
 # Health endpoints live on their own port, which the gateway never routes (ADR-0008, ADR-0013).
-# Readiness depends on this service's own database only (ADR-0008). The broker joins the picture
-# when Booking starts consuming events.
+# Readiness depends on this service's own database only (ADR-0008). The broker is deliberately not part of it:
+# when it is down, Booking still sells seats it already has, and the consumer reconnects by itself (NFR-3).
 management:
   server:
     port: 19083
@@ -37,6 +54,9 @@ management:
       group:
         readiness:
           include: readinessState,db
+  health:
+    rabbit:
+      enabled: false
 
 logging:
   pattern:
@@ -46,5 +66,8 @@ logging:
 # container network only, so Booking starts even when Identity is not up yet.
 ticketflow:
   booking:
+    # Seat inventory is built from the layout that Catalog publishes (ADR-0012). Other defaults: ProvisioningProperties.
+    provisioning:
+      catalog-uri: ${CATALOG_URI:http://localhost:18081}
     jwt:
       jwks-uri: ${IDENTITY_URI:http://localhost:18082}/.well-known/jwks.json
