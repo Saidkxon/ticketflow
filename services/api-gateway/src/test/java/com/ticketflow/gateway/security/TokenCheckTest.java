@@ -55,6 +55,7 @@ class TokenCheckTest {
         String address = "http://127.0.0.1:" + IDENTITY.getAddress().getPort();
         registry.add("ticketflow.gateway.identity-uri", () -> address);
         registry.add("ticketflow.gateway.catalog-uri", () -> address);
+        registry.add("ticketflow.gateway.booking-uri", () -> address);
         registry.add("ticketflow.gateway.jwt.jwks-uri", () -> address + "/.well-known/jwks.json");
     }
 
@@ -125,6 +126,23 @@ class TokenCheckTest {
         assertThat(receivedUri).isEqualTo("/api/v1/admin/location/users/" + id + "/history?limit=5");
         assertThat(send("POST", "/api/v1/location/positions", token, address).statusCode()).isEqualTo(200);
         assertThat(receivedUri).isEqualTo("/api/v1/location/positions");
+    }
+
+    @Test
+    void bookingPathsNeedATokenAndAreRouted() throws Exception {
+        String id = UUID.randomUUID().toString();
+        String address = nextAddress();
+
+        assertThat(send("GET", "/api/v1/bookings", null, address).statusCode()).isEqualTo(401);
+        assertThat(send("GET", "/api/v1/bookings/" + id, null, address).statusCode()).isEqualTo(401);
+        assertThat(send("POST", "/api/v1/bookings/" + id + "/cancel", null, address).statusCode()).isEqualTo(401);
+        assertThat(send("GET", "/api/v1/bookings/anything-new", "garbage", address).statusCode()).isEqualTo(401);
+        assertThat(receivedUri).isNull();
+
+        String token = TokenFixtures.token(KEY, UUID.randomUUID());
+        assertThat(send("GET", "/api/v1/bookings/" + id + "?x=1", token, address).statusCode()).isEqualTo(200);
+        assertThat(receivedUri).isEqualTo("/api/v1/bookings/" + id + "?x=1");
+        assertThat(receivedAuthorization).isEqualTo("Bearer " + token);
     }
 
     @Test

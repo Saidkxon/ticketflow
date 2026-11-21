@@ -70,6 +70,23 @@ class RoutesConfig {
     }
 
     /**
+     * The signed-in user's bookings (ADR-0013). Every path needs a token (BearerTokenFilter, where the prefix is
+     * listed); Booking checks it again. The seat availability and hold paths below /api/v1/events come with the
+     * Booking pull requests that build them, and must be listed before the general events route.
+     */
+    @Bean
+    RouterFunction<ServerResponse> bookingRoutes(
+            @Value("${ticketflow.gateway.booking-uri}") String bookingUri) {
+        return route("booking")
+                .GET("/api/v1/bookings", http())
+                .GET("/api/v1/bookings/**", http())
+                .POST("/api/v1/bookings", http())
+                .POST("/api/v1/bookings/**", http())
+                .before(uri(bookingUri))
+                .build();
+    }
+
+    /**
      * Registration, login, refresh and logout go to the Identity service (contracts/identity.openapi.yaml).
      * The Cookie, Origin and X-TicketFlow-Client request headers and the Set-Cookie response header
      * pass through unchanged: the refresh cookie belongs to Identity. The public keys path is never routed.
