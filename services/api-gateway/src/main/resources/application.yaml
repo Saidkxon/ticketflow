@@ -16,6 +16,7 @@ ticketflow:
   gateway:
     catalog-uri: ${CATALOG_URI:http://localhost:18081}
     identity-uri: ${IDENTITY_URI:http://localhost:18082}
+    booking-uri: ${BOOKING_URI:http://localhost:18083}
     # How access tokens are checked (ADR-0004, Part B). The keys come from Identity's address inside the
     # container network; the path is never routed to the outside.
     jwt:

@@ -83,6 +83,29 @@ services:
       retries: 12
       start_period: 30s
 
+  booking:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: services/booking-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      BOOKING_DB_URL: jdbc:postgresql://postgres:5432/booking
+      BOOKING_DB_USER: booking
+      BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:?set BOOKING_DB_PASSWORD in deploy/.env}
+      # Booking checks access tokens itself and fetches Identity's public keys on first use (ADR-0004).
+      IDENTITY_URI: http://identity:18082
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No published ports: only the gateway is reachable from outside (ADR-0013).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:19083/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   identity:
     profiles: ["app"]
     build:
@@ -123,6 +146,7 @@ services:
     environment:
       CATALOG_URI: http://catalog:18081
       IDENTITY_URI: http://identity:18082
+      BOOKING_URI: http://booking:18083
       # Request limits per client address and minute (ADR-0013, rule G3). Raise them in deploy/.env when testing a lot.
       GATEWAY_AUTH_LIMIT_PER_MINUTE: ${GATEWAY_AUTH_LIMIT_PER_MINUTE:-10}
       GATEWAY_DEFAULT_LIMIT_PER_MINUTE: ${GATEWAY_DEFAULT_LIMIT_PER_MINUTE:-100}
@@ -131,6 +155,8 @@ services:
       catalog:
         condition: service_healthy
       identity:
+        condition: service_healthy
+      booking:
         condition: service_healthy
     ports:
       # Bound to this computer only, never to the network.

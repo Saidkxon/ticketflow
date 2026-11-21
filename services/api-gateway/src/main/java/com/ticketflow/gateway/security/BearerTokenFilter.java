@@ -31,8 +31,9 @@ class BearerTokenFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(BearerTokenFilter.class);
     private static final String PREFIX = "Bearer ";
 
-    /** Path prefixes that need a valid access token. Add the booking and payment prefixes when those services get routes. */
-    static final List<String> PROTECTED_PREFIXES = List.of("/api/v1/users", "/api/v1/location", "/api/v1/admin");
+    /** Path prefixes that need a valid access token. Add the payment prefix when that service gets routes. */
+    static final List<String> PROTECTED_PREFIXES =
+            List.of("/api/v1/users", "/api/v1/location", "/api/v1/admin", "/api/v1/bookings");
 
     private static final String EVENTS = "/api/v1/events";
     private static final String MY_EVENTS = "/api/v1/events/mine";
