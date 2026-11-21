@@ -38,7 +38,7 @@ The coordinates on events and the "near me" search on the server are done (PR 4)
 
 | # | Pull request | Delivers |
 |---|---|---|
-| 6 | RabbitMQ | Broker in Compose, Catalog's outbox relay publishing to it, event schema in `contracts/`. Broker memory is measured and recorded in ADR-0003 (rule 9). |
+| 6 | RabbitMQ (in review) | Broker in Compose, Catalog's outbox relay publishing to it, event schema in `contracts/`. Broker memory is measured and recorded in ADR-0003 (rule 9). |
 | 7 | Booking skeleton | New service: Flyway, token check, health, CI, gateway route. |
 | 8 | Provisioning | On "layout published", Booking fetches the snapshot and creates one row per seat. Idempotent; the event is "not on sale yet" until done. |
 | 9 | Availability | The list of unavailable seat IDs with `ETag` and 304, a 1-2 second in-process cache, and a public gateway route (ADR-0011). |

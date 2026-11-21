@@ -14,4 +14,4 @@ Rules (ADR-0009):
 - Lists use `page` (from 0) and `size` (default 20, maximum 50).
 - JSON fields are camelCase, IDs are UUID strings, timestamps are ISO 8601 in UTC.
 
-Not yet in place (decided when the first endpoint ships): the automated breaking-change check, the contract tests against real responses, and the generated web client. Event messages are described as JSON Schema files in [`events/`](events/layout-published.v1.schema.json) (one file per event type and version; the file name carries the version).
+Not yet in place (decided when the first endpoint ships): the automated breaking-change check, the contract tests against real responses, and the generated web client. Event messages are described as JSON Schema files in [`events/`](events/README.md) (one file per event type and version; the file name carries the version), together with the exchange and routing-key rules.

@@ -1,0 +1,18 @@
+# Event messages
+
+Every event is one JSON message, described by a JSON Schema file in this folder (`<event-name>.v<major>.schema.json`). The envelope is defined in ADR-0009.
+
+## How a message travels (ADR-0003, ADR-0009)
+
+| Item | Rule |
+|---|---|
+| Exchange | `ticketflow.events`, a durable **topic** exchange. Producers declare it; the name is fixed. |
+| Routing key | `<producer>.<event-name>` in lowercase with hyphens, for example `catalog.layout-published`. Derived from `eventType` (`LayoutPublished`). |
+| Message ID | AMQP `messageId` = envelope `eventId` = the outbox row ID. A consumer's duplicate check uses it. |
+| Delivery | Persistent, `application/json`, UTF-8. At least once: a consumer must tolerate the same message twice. |
+| Queues | Owned by the **consumer**. A consumer declares its own durable queue, binds it to the routing keys it needs, and also owns its dead-letter queue. Producers never declare consumer queues. |
+| No queue yet | If no queue is bound to the routing key, the broker returns the message. The producer keeps it in its outbox and retries, so a consumer that starts later still receives it. |
+
+| Event | Producer | Routing key | Schema |
+|---|---|---|---|
+| LayoutPublished | Catalog | `catalog.layout-published` | [layout-published.v1.schema.json](layout-published.v1.schema.json) |
