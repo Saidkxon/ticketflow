@@ -95,6 +95,13 @@ services:
       BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:?set BOOKING_DB_PASSWORD in deploy/.env}
       # Booking checks access tokens itself and fetches Identity's public keys on first use (ADR-0004).
       IDENTITY_URI: http://identity:18082
+      # When Catalog announces a published layout, Booking fetches it from here (ADR-0012). Only while an event is set up.
+      CATALOG_URI: http://catalog:18081
+      # The consumer connects to the broker by itself and keeps trying while it is down (ADR-0003).
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ticketflow
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in deploy/.env}
     depends_on:
       postgres:
         condition: service_healthy
