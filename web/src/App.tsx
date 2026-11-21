@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router';
 import { AccountPage } from './pages/AccountPage';
+import { AdminLocationsPage } from './pages/AdminLocationsPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -8,6 +9,7 @@ import { OrganizerEventsPage } from './pages/OrganizerEventsPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { RequireAuth } from './auth/RequireAuth';
 import { Layout } from './Layout';
+import { AdminArea } from './admin/RequireAdmin';
 import { OrganizerArea } from './organizer/RequireOrganizer';
 
 export function App() {
@@ -25,6 +27,9 @@ export function App() {
             </RequireAuth>
           }
         />
+        <Route path="admin" element={<AdminArea />}>
+          <Route path="locations" element={<AdminLocationsPage />} />
+        </Route>
         <Route path="organizer" element={<OrganizerArea />}>
           <Route index element={<OrganizerEventsPage />} />
           <Route path="events/new" element={<OrganizerEventFormPage />} />
