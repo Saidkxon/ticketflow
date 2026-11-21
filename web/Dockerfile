@@ -10,11 +10,6 @@ COPY . .
 # Build-time switch for the location question (ADR-0015). Empty or anything but "true" means it cannot be skipped.
 ARG VITE_LOCATION_ALLOW_NOT_NOW=false
 ENV VITE_LOCATION_ALLOW_NOT_NOW=$VITE_LOCATION_ALLOW_NOT_NOW
-# The Google Maps browser key of the administrator map (ADR-0015). Empty means the map shows a "not set up" message.
-# A browser key is public by nature (it ends up in the built JavaScript); it is protected by the restrictions set in the
-# Google console, never by secrecy. It is not in the repository: it comes from deploy/.env at build time.
-ARG VITE_GOOGLE_MAPS_API_KEY=
-ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 # Type check and bundle. Lint and tests run in CI (web-build), not in the image build.
 RUN npm run build
 

@@ -56,17 +56,6 @@ Nobody becomes an Admin by registering. The first Admin is made like this:
 
 The setting does nothing when the user is already an Admin, so it can stay. If the log says no user is registered with that email, register first and restart.
 
-## The administrator map (Google Maps key)
-
-The administrator page `/admin/locations` shows tracked users on a Google map (ADR-0015). Without a key the page still works: it shows the table and a "map is not set up" message. To switch the map on:
-
-1. In the Google Cloud console create a project just for TicketFlow, attach billing, and enable only the **Maps JavaScript API**.
-2. Create a budget with alerts (an alert only emails; it does not stop spending) and set a daily limit for "Map loads per day" under APIs & Services, Quotas (this one stops usage).
-3. Create an API key, restrict it to **Websites** (`http://localhost:18090/*` and later the real site address) and to the **Maps JavaScript API** only.
-4. Put it in `deploy/.env` as `VITE_GOOGLE_MAPS_API_KEY=...` (never in a file that is committed) and rebuild the web image: `docker compose -f deploy/compose.yaml --profile app up -d --build web`. For `npm run dev`, put it in `web/.env.local` instead.
-
-The key ends up in the built JavaScript, like every browser key. Its protection is the restriction in step 3, the daily limit and the budget alert, so do not skip them. A key that was ever pasted into a chat, an issue or a commit should be deleted in the console and replaced.
-
 ## Local ports
 
 Services use high ports because Windows reserves some low ranges (for example 8081-8180, and the ranges change after restarts). Each service has an application port and a separate health port that the gateway never routes (ADR-0008, ADR-0013).
