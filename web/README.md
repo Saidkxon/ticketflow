@@ -40,6 +40,10 @@ After registration and every login the app shows the location question (ADR-0015
 
 The one switch that brings a "Not now" link back is the build setting `VITE_LOCATION_ALLOW_NOT_NOW=true` (default `false`; `src/location/config.ts`). With `npm run dev`, put it in `web/.env.local`. For the containers, put it in `deploy/.env` and rebuild the web image. The consent text and its version are in `src/location/consentText.tsx`; raise the version there and in Identity's `ticketflow.identity.location.consent-text-version` together to ask everybody again. Browsers only offer location on `https://` addresses and on `localhost`.
 
+## Administrator map
+
+`/admin/locations` (ADMIN role only, link "Locations" in the header) shows the latest position of every tracked user on a map with their names, and a table; "History" shows one user's trail. The map is Leaflet with OpenStreetMap tiles: free, no account and no key. Only `src/admin/maps/` knows the map library (`loadMaps.ts` is the adapter, loaded on demand), so another provider can replace it later. The map tiles come straight from `tile.openstreetmap.org`, so the administrator's browser tells OpenStreetMap which area is being viewed; OpenStreetMap's tile policy allows normal administrator use but not heavy traffic, and the attribution on the map must stay. Every read of the data is written to an access log on the server, so the page reads on request only: the first visit, the Refresh button and a click on History, never by a timer.
+
 ## Checks (the same ones CI runs)
 
 ```

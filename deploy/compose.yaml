@@ -119,6 +119,8 @@ services:
       args:
         # The location question cannot be skipped unless this is exactly "true" (ADR-0015). It is baked into the build.
         VITE_LOCATION_ALLOW_NOT_NOW: ${VITE_LOCATION_ALLOW_NOT_NOW:-false}
+        # Browser key for the administrator map. Put it in deploy/.env (git-ignored), never in this file.
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
     restart: unless-stopped
     depends_on:
       gateway:

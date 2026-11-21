@@ -150,3 +150,31 @@ fieldset {
   gap: 0.5rem;
   font-weight: normal;
 }
+
+.map {
+  width: 100%;
+  height: 22rem;
+  margin: 1rem 0;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.history-list {
+  max-height: 16rem;
+  overflow: auto;
+  padding-left: 1.5rem;
+}
+
+/* The name pin of the administrator map (a plain circle, no image files). */
+.map-pin span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1a73e8;
+  color: #fff;
+  font-weight: bold;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 40%);
+}
