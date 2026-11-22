@@ -25,6 +25,7 @@ ticketflow:
     limits:
       auth-per-minute: ${GATEWAY_AUTH_LIMIT_PER_MINUTE:10}
       default-per-minute: ${GATEWAY_DEFAULT_LIMIT_PER_MINUTE:100}
+      availability-per-minute: ${GATEWAY_AVAILABILITY_LIMIT_PER_MINUTE:60}
       user-per-minute: ${GATEWAY_USER_LIMIT_PER_MINUTE:100}
       max-body-size: 16KB
 

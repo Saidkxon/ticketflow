@@ -21,7 +21,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Rate limits and the body size limit (ADR-0013, rules G3 and G7), with small numbers so the
- * tests stay short: 3 auth requests and 5 other requests per minute, bodies up to 100 bytes.
+ * tests stay short: 3 auth requests, 4 availability requests and 5 other requests per minute, bodies up to 100 bytes.
  * Every test uses its own client address (X-Forwarded-For) so the counters do not mix.
  */
 @SpringBootTest(
@@ -30,6 +30,7 @@ import org.springframework.test.context.DynamicPropertySource;
                 "management.server.port=-1",
                 "ticketflow.gateway.limits.auth-per-minute=3",
                 "ticketflow.gateway.limits.default-per-minute=5",
+                "ticketflow.gateway.limits.availability-per-minute=4",
                 "ticketflow.gateway.limits.max-body-size=100B"})
 class LimitsTest {
 
@@ -46,6 +47,7 @@ class LimitsTest {
         String address = "http://127.0.0.1:" + SERVICE.getAddress().getPort();
         registry.add("ticketflow.gateway.identity-uri", () -> address);
         registry.add("ticketflow.gateway.catalog-uri", () -> address);
+        registry.add("ticketflow.gateway.booking-uri", () -> address);
     }
 
     @AfterAll
@@ -97,6 +99,23 @@ class LimitsTest {
             assertThat(events("10.3.0.4").statusCode()).isEqualTo(200);
         }
         assertThat(events("10.3.0.4").statusCode()).isEqualTo(429);
+    }
+
+    @Test
+    void seatAvailabilityPollingHasItsOwnCounter() throws Exception {
+        String address = "10.3.0.9";
+        String event = "3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50";
+        for (int i = 0; i < 4; i++) {
+            assertThat(get("/api/v1/events/" + event + "/availability", address).statusCode()).isEqualTo(200);
+        }
+
+        HttpResponse<String> blocked = get("/api/v1/events/" + event + "/availability", address);
+
+        assertThat(blocked.statusCode()).isEqualTo(429);
+        assertThat(blocked.body()).contains("\"code\":\"RATE_LIMITED\"");
+        // Browsing events is a different group: the polling did not use up its budget.
+        assertThat(events(address).statusCode()).isEqualTo(200);
+        assertThat(get("/api/v1/events/" + event, address).statusCode()).isEqualTo(200);
     }
 
     @Test
@@ -156,6 +175,13 @@ class LimitsTest {
                 HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/login"))
                         .header("X-Forwarded-For", forwardedFor)
                         .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> get(String path, String forwardedFor) throws Exception {
+        return client.send(
+                HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+                        .header("X-Forwarded-For", forwardedFor).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
     }
 

@@ -36,6 +36,11 @@ spring:
 
 server:
   port: 18083
+  # The availability list of a big venue can be tens of kilobytes (ADR-0011): compress JSON above 1 KB.
+  compression:
+    enabled: true
+    mime-types: application/json
+    min-response-size: 1KB
 
 # Health endpoints live on their own port, which the gateway never routes (ADR-0008, ADR-0013).
 # Readiness depends on this service's own database only (ADR-0008). The broker is deliberately not part of it:
@@ -69,5 +74,8 @@ ticketflow:
     # Seat inventory is built from the layout that Catalog publishes (ADR-0012). Other defaults: ProvisioningProperties.
     provisioning:
       catalog-uri: ${CATALOG_URI:http://localhost:18081}
+    # How long the list of unavailable seats of an event is reused (ADR-0011: one or two seconds).
+    availability:
+      cache-ttl: 2s
     jwt:
       jwks-uri: ${IDENTITY_URI:http://localhost:18082}/.well-known/jwks.json

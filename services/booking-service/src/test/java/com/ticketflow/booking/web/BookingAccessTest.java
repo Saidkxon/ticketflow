@@ -61,10 +61,10 @@ class BookingAccessTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
-    void availabilityNeedsNoTokenSoItReachesTheRouting() throws Exception {
-        // There is no availability endpoint yet (a later pull request), so the answer is a 404 and not a 401.
+    void availabilityNeedsNoTokenSoItReachesTheEndpoint() throws Exception {
+        // An event that has no seats in Booking is "not on sale", answered without a token (not with a 401).
         mockMvc.perform(get("/api/v1/events/" + UUID.randomUUID() + "/availability"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("EVENT_NOT_ON_SALE"));
     }
 }
