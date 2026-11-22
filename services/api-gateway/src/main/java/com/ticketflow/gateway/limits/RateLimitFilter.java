@@ -27,6 +27,8 @@ class RateLimitFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
     private static final Pattern ADDRESS_SHAPE = Pattern.compile("^[0-9a-fA-F:.]{2,45}$");
     private static final String AUTH_PREFIX = "/api/v1/auth/";
+    private static final String EVENTS_PREFIX = "/api/v1/events/";
+    private static final String AVAILABILITY_SUFFIX = "/availability";
 
     private final FixedWindowLimiter limiter;
     private final LimitsProperties limits;
@@ -39,9 +41,19 @@ class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
-        boolean auth = request.getRequestURI().startsWith(AUTH_PREFIX);
-        String group = auth ? "auth" : "default";
-        int limit = auth ? limits.authPerMinute() : limits.defaultPerMinute();
+        String path = request.getRequestURI();
+        String group;
+        int limit;
+        if (path.startsWith(AUTH_PREFIX)) {
+            group = "auth";
+            limit = limits.authPerMinute();
+        } else if (path.startsWith(EVENTS_PREFIX) && path.endsWith(AVAILABILITY_SUFFIX)) {
+            group = "availability";
+            limit = limits.availabilityPerMinute();
+        } else {
+            group = "default";
+            limit = limits.defaultPerMinute();
+        }
 
         FixedWindowLimiter.Decision decision = limiter.tryAcquire(group + ":" + clientAddress(request), limit);
         if (!decision.allowed()) {

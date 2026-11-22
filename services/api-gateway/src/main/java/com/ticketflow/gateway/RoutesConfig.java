@@ -7,6 +7,8 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.servlet.function.RouterFunction;
 import org.springframework.web.servlet.function.ServerResponse;
 
@@ -70,9 +72,24 @@ class RoutesConfig {
     }
 
     /**
+     * Seat availability of an event: public, read by the seat map every few seconds (ADR-0011). It lives below
+     * /api/v1/events, so it must be tried before the general events route, which sends everything else there to
+     * Catalog. The order is what {@code @Order} sets: the lowest number is tried first.
+     */
+    @Bean
+    @Order(Ordered.HIGHEST_PRECEDENCE)
+    RouterFunction<ServerResponse> bookingAvailabilityRoute(
+            @Value("${ticketflow.gateway.booking-uri}") String bookingUri) {
+        return route("booking-availability")
+                .GET("/api/v1/events/{eventId}/availability", http())
+                .before(uri(bookingUri))
+                .build();
+    }
+
+    /**
      * The signed-in user's bookings (ADR-0013). Every path needs a token (BearerTokenFilter, where the prefix is
-     * listed); Booking checks it again. The seat availability and hold paths below /api/v1/events come with the
-     * Booking pull requests that build them, and must be listed before the general events route.
+     * listed); Booking checks it again. The hold paths below /api/v1/events come with the pull request that builds
+     * them, and must be tried before the general events route, like the availability route above.
      */
     @Bean
     RouterFunction<ServerResponse> bookingRoutes(

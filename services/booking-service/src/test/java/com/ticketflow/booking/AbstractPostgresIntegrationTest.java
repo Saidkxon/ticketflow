@@ -47,6 +47,8 @@ public abstract class AbstractPostgresIntegrationTest {
         // Short waits, so the tests that fail on purpose finish in seconds.
         registry.add("ticketflow.booking.provisioning.catalog-uri", CatalogStandIn::uri);
         registry.add("ticketflow.booking.provisioning.max-attempts", () -> "3");
+        // No availability cache in the integration tests, so they see every change at once; the cache has its own tests.
+        registry.add("ticketflow.booking.availability.cache-ttl", () -> "0s");
         registry.add("ticketflow.booking.provisioning.retry-delay", () -> "1s");
         registry.add("ticketflow.booking.jwt.jwks-uri",
                 () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort() + "/.well-known/jwks.json");

@@ -5,6 +5,7 @@ The OpenAPI files here are the **source of truth** for every public API (ADR-000
 | File | Service | Status |
 |---|---|---|
 | [catalog.openapi.yaml](catalog.openapi.yaml) | Event Catalog | Public event list and event layout; organizer events, layout and publish |
+| [booking.openapi.yaml](booking.openapi.yaml) | Booking | Public seat availability of an event (holds and bookings come later) |
 | [identity.openapi.yaml](identity.openapi.yaml) | Identity | Proposed: register, login, refresh, logout, current user, roles, public keys (no code yet) |
 
 Rules (ADR-0009):

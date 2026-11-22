@@ -67,6 +67,12 @@ check "bookings: without a token is refused" 401 "$(curl -s -o /dev/null -w '%{h
 booking_answer="$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $access" "$WEB/api/v1/bookings/3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50")"
 check "bookings: with a token the request reaches Booking" 404 "$(printf '%s' "$booking_answer" | tail -1)"
 contains "bookings: the 404 comes from Booking" '"code":"NOT_FOUND"' "$booking_answer"
+# Seat availability (ADR-0011): public, answered by Booking even though its path is below /api/v1/events (Catalog's).
+# An event without seats in Booking is "not on sale"; Catalog's own 404 for an unknown event has the code NOT_FOUND.
+unknown_event=3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50
+availability="$(curl -s -w '\n%{http_code}' "$WEB/api/v1/events/$unknown_event/availability")"
+check "availability: public, without a token" 404 "$(printf '%s' "$availability" | tail -1)"
+contains "availability: answered by Booking" '"code":"EVENT_NOT_ON_SALE"' "$availability"
 first="$(cookie_of "$login")"
 refreshed="$(auth refresh -H "Cookie: refresh_token=$first")"
 check "auth: refresh" 200 "$(status_of "$refreshed")"

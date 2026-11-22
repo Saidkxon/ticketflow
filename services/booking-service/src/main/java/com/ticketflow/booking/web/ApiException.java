@@ -36,6 +36,12 @@ public class ApiException extends RuntimeException {
                 "Authentication is required.");
     }
 
+    /** The event has no seat inventory (yet): it is unknown, still being set up, or not published. */
+    public static ApiException notOnSale() {
+        return new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_ON_SALE", "Event is not on sale",
+                "The event is not on sale (yet).");
+    }
+
     /** Also used when the event belongs to somebody else: the caller must not learn that it exists. */
     public static ApiException eventNotFound() {
         return new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Not found", "The event was not found.");

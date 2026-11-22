@@ -1,0 +1,185 @@
+openapi: 3.1.0
+info:
+  title: TicketFlow Booking API
+  version: 1.0.0
+  description: |
+    Public API of the Booking service, reached through the API gateway (ADR-0002, ADR-0013).
+    This file is the source of truth: a change to behavior starts with a change here (ADR-0009, part E).
+
+    Scope today: seat availability of an event. Holds, bookings and the "my bookings" list are added by later
+    pull requests; additive changes do not create a new major version (ADR-0009, part A).
+
+    **Error codes used by this API today:** `EVENT_NOT_ON_SALE`, `INVALID_REQUEST`, `RATE_LIMITED`,
+    `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
+servers:
+  - url: /api/v1
+    description: Same origin as the web app (ADR-0013, rule G10)
+tags:
+  - name: availability
+    description: Which seats of an event can be taken right now
+
+paths:
+  /events/{eventId}/availability:
+    get:
+      tags: [availability]
+      operationId: getSeatAvailability
+      summary: The seats of an event that cannot be taken right now
+      description: |
+        Public, no token (ADR-0004, ADR-0011). It lists seat IDs only, no personal data. A seat is unavailable when it
+        is sold, or held with a deadline that is still in the future. A hold whose deadline has passed counts as
+        available at once, whether or not the clean-up job has run (ADR-0012). The seat map draws from this list and
+        from the layout that Catalog serves (`GET /events/{eventId}/layout`).
+
+        The ETag is derived from the content: the same list gives the same ETag, and a matching `If-None-Match`
+        gets 304 with no body. The server may reuse a list for one or two seconds (ADR-0011), so a change can take
+        a moment to show. **The map is a hint, not a promise:** the server decides every hold.
+
+        An event without seats in Booking, because it is unknown, still being set up, or not published, answers
+        404 `EVENT_NOT_ON_SALE`. The gateway allows 60 availability requests per minute per address (ADR-0013).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - name: If-None-Match
+          in: header
+          required: false
+          description: The ETag of a list the caller already has
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The unavailable seats, sorted by seat ID
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              description: no-cache, so a client asks again (cheaply, with If-None-Match) instead of guessing
+              schema:
+                type: string
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeatAvailability'
+        '304':
+          description: The caller's list is still current
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/NotOnSale'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+components:
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    ETag:
+      description: A weak ETag of the list, for example W/"9f2c4e7a1b3d5f60a8b9c0d1e2f30415" (weak so the body may be compressed)
+      schema:
+        type: string
+    CorrelationId:
+      description: Correlation ID of this request (ADR-0009). Created by the gateway when the caller sends none.
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    SeatAvailability:
+      type: object
+      required: [eventId, unavailableSeatIds]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        unavailableSeatIds:
+          type: array
+          description: Seat IDs from the layout that cannot be taken right now, sorted; empty when every seat is free
+          items:
+            type: string
+            format: uuid
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details with our stable machine-readable code (ADR-0009, part B)
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: string
+          description: Stable identifier. Clients switch on this, never on title or detail text.
+          examples: [EVENT_NOT_ON_SALE]
+        detail:
+          type: string
+        instance:
+          type: string
+        correlationId:
+          type: string
+          format: uuid
+        errors:
+          type: array
+          description: Present on validation failures (field and problem)
+          items:
+            type: object
+            required: [field, problem]
+            properties:
+              field:
+                type: string
+              problem:
+                type: string
+
+  responses:
+    NotOnSale:
+      description: The event has no seats in Booking (unknown, still being set up, or not published). Code EVENT_NOT_ON_SALE.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InvalidRequest:
+      description: Invalid input, for example an event ID that is not a UUID. Code INVALID_REQUEST.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Rate limit exceeded. Code RATE_LIMITED.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: Unexpected server error. Code INTERNAL_ERROR. No internal details are exposed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unavailable:
+      description: Service or upstream temporarily unavailable. Code UPSTREAM_UNAVAILABLE.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
