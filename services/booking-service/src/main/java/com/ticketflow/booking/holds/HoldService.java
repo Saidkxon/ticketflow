@@ -231,7 +231,7 @@ class HoldService {
     }
 
     /** A lock wait that timed out (55P03) or a deadlock (40P01): both mean "try again", wherever Spring wraps them. */
-    private static boolean isLockFailure(Throwable error) {
+    static boolean isLockFailure(Throwable error) {
         for (Throwable t = error; t != null; t = t.getCause()) {
             if (t instanceof PessimisticLockingFailureException) {
                 return true;

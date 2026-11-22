@@ -6,12 +6,13 @@ info:
     Public API of the Booking service, reached through the API gateway (ADR-0002, ADR-0013).
     This file is the source of truth: a change to behavior starts with a change here (ADR-0009, part E).
 
-    Scope today: seat availability of an event, and holding seats. Reading, releasing and listing bookings are added
-    by later pull requests; additive changes do not create a new major version (ADR-0009, part A).
+    Scope today: seat availability of an event, holding seats, reading and listing the signed-in customer's
+    bookings, and releasing a hold. Payment, confirmation and cancelling a confirmed booking are added by later pull
+    requests; additive changes do not create a new major version (ADR-0009, part A).
 
     **Error codes used by this API today:** `EVENT_NOT_ON_SALE`, `INVALID_REQUEST`, `UNAUTHENTICATED`,
     `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`, `REQUEST_IN_PROGRESS`, `SEATS_UNAVAILABLE`,
-    `SEATS_BUSY`, `ACTIVE_HOLD_EXISTS`, `RATE_LIMITED`, `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
+    `SEATS_BUSY`, `ACTIVE_HOLD_EXISTS`, `NOT_FOUND`, `BOOKING_NOT_ACTIVE`, `RATE_LIMITED`, `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
 servers:
   - url: /api/v1
     description: Same origin as the web app (ADR-0013, rule G10)
@@ -169,6 +170,175 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
 
+    get:
+      tags: [bookings]
+      operationId: listMyBookings
+      summary: The signed-in customer's bookings, newest first
+      description: |
+        Every booking of the caller, whatever its status, with its seats. A customer never sees the bookings of
+        somebody else. The answer is personal and is never stored by a cache. A booking whose hold deadline has passed
+        is shown as EXPIRED even before Booking has released its seats.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: One page of bookings (empty when the customer has none)
+          headers:
+            Cache-Control:
+              description: no-store, the answer is personal
+              schema:
+                type: string
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingPage'
+        '400':
+          description: '`page` or `size` is out of range. Code INVALID_REQUEST, with an `errors` list.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid access token. Code UNAUTHENTICATED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /bookings/{bookingId}:
+    get:
+      tags: [bookings]
+      operationId: getBooking
+      summary: One booking of the signed-in customer
+      description: |
+        A booking that belongs to somebody else is answered exactly like one that does not exist (404 NOT_FOUND), so
+        nobody can find out which booking IDs exist. `expiresAt` and `serverTime` come from the same database clock.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: The booking
+          headers:
+            Cache-Control:
+              description: no-store, the answer is personal
+              schema:
+                type: string
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: '`bookingId` is not a UUID. Code INVALID_REQUEST.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid access token. Code UNAUTHENTICATED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No such booking, or it is not the caller's. Code NOT_FOUND.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
+  /bookings/{bookingId}/release:
+    post:
+      tags: [bookings]
+      operationId: releaseHold
+      summary: Give up a hold
+      description: |
+        The booking becomes CANCELLED and its seats are free again at once, in one step. Releasing a booking that
+        is already CANCELLED answers 200 with the same booking, so a retry after a lost answer is safe. A hold whose
+        deadline has passed cannot be released (409 BOOKING_NOT_ACTIVE): it has already lost its seats. Nothing is
+        sent to other services; no money has moved (ADR-0006).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: The booking, now CANCELLED
+          headers:
+            Cache-Control:
+              description: no-store, the answer is personal
+              schema:
+                type: string
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: '`bookingId` is not a UUID. Code INVALID_REQUEST.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid access token. Code UNAUTHENTICATED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No such booking, or it is not the caller's. Code NOT_FOUND.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: |
+            `BOOKING_NOT_ACTIVE`: the hold has ended (EXPIRED). `SEATS_BUSY`: the seats were being changed by other
+            requests for longer than the server waits; try again in a moment.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -176,6 +346,13 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     EventId:
       name: eventId
       in: path
@@ -239,10 +416,11 @@ components:
         status:
           type: string
           description: |
-            HELD while the hold lasts. EXPIRED once the hold deadline has passed and Booking has released the seats
-            (a repeated request with the same Idempotency-Key returns the booking as it is then). Later pull
-            requests add the other statuses (ADR-0006).
-          enum: [HELD, EXPIRED]
+            HELD while the hold lasts. EXPIRED once the hold deadline has passed (shown as soon as the deadline is
+            past, even before Booking has released the seats; a repeated request with the same Idempotency-Key
+            returns the booking as it is then). CANCELLED after the customer released the hold. Later pull requests
+            add the other statuses (ADR-0006).
+          enum: [HELD, EXPIRED, CANCELLED]
         currency:
           type: string
           description: Three-letter code of the event's currency
@@ -293,6 +471,21 @@ components:
               items:
                 type: string
                 format: uuid
+    BookingPage:
+      type: object
+      required: [items, page, size, totalItems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Booking'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalItems:
+          type: integer
+          format: int64
     Problem:
       type: object
       description: RFC 9457 Problem Details with our stable machine-readable code (ADR-0009, part B)
