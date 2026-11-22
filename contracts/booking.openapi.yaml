@@ -238,8 +238,11 @@ components:
           format: uuid
         status:
           type: string
-          description: HELD today; later pull requests add the other statuses
-          enum: [HELD]
+          description: |
+            HELD while the hold lasts. EXPIRED once the hold deadline has passed and Booking has released the seats
+            (a repeated request with the same Idempotency-Key returns the booking as it is then). Later pull
+            requests add the other statuses (ADR-0006).
+          enum: [HELD, EXPIRED]
         currency:
           type: string
           description: Three-letter code of the event's currency

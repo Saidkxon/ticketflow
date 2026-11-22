@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ticketflow.local/contracts/events/booking-expired.v1.schema.json",
+  "title": "BookingExpired v1",
+  "description": "Booking tells that a booking was not completed in time: its hold deadline passed and its seats are free again. Routing key: booking.booking-expired. It carries identifiers only, no personal data; a consumer that needs more (for example to notify the customer) looks it up itself. Consumers ignore unknown fields (ADR-0009, part F).",
+  "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "producer", "correlationId", "aggregateId", "data"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of this message, used by consumers to recognize duplicates"
+    },
+    "eventType": { "const": "BookingExpired" },
+    "eventVersion": { "const": 1 },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When Booking expired the booking (a little after the deadline, as the sweeper runs every few seconds)"
+    },
+    "producer": { "const": "booking-service" },
+    "correlationId": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Null today: the sweeper that expires bookings is not a request"
+    },
+    "aggregateId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The booking; the same as data.bookingId"
+    },
+    "data": {
+      "type": "object",
+      "required": ["bookingId", "eventId", "userId", "expiredAt"],
+      "properties": {
+        "bookingId": { "type": "string", "format": "uuid" },
+        "eventId": { "type": "string", "format": "uuid", "description": "The ticketed event" },
+        "userId": { "type": "string", "format": "uuid", "description": "The customer who held the seats" },
+        "expiredAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The hold deadline that passed"
+        }
+      }
+    }
+  }
+}
