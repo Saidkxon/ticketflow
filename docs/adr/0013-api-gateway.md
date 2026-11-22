@@ -89,9 +89,9 @@ More specific routes are matched before general ones.
 | `/api/v1/auth/**` (register, login, refresh, logout) | Identity | No (rate limited) |
 | `/api/v1/users/**` | Identity | Yes |
 | `/api/v1/location/**`, `/api/v1/admin/**` (location consent, positions, Admin reads) | Identity | Yes |
-| `/api/v1/events/*/holds`, `/api/v1/events/*/availability` | Booking | Holds: yes; availability: no |
+| `/api/v1/events/*/availability` | Booking | No |
 | `/api/v1/events/**` (everything else under events) | Catalog | Reads: no; writes: yes |
-| `/api/v1/bookings/**` | Booking | Yes |
+| `/api/v1/bookings/**` (holds and bookings) | Booking | Yes |
 | `/internal/**` | Nowhere (404) | n/a |
 
 **Payment and Notification have no public routes at all in the MVP**: customers pay through Booking (ADR-0006), and Notification only consumes events (ADR-0002). Fewer public services means a smaller attack surface.
@@ -186,3 +186,4 @@ More specific routes are matched before general ones.
 - **2026-11-19, location paths (ADR-0015).** `BearerTokenFilter.PROTECTED_PREFIXES` now lists `/api/v1/users`, `/api/v1/location` and `/api/v1/admin`, so a new path under them needs a token even before it is routed. Routed to Identity: `GET` and `PUT /location/consent`, `POST /location/positions`, `GET /admin/location/latest` and `GET /admin/location/users/{userId}/history`. Identity decides about the Admin role.
 - **2026-11-21, first Booking route (Phase 4b, PR 7).** The gateway reaches Booking at `BOOKING_URI` (default `http://localhost:18083`, `http://booking:18083` in Compose). `/api/v1/bookings` and everything below it needs a valid token at the gateway (`PROTECTED_PREFIXES`), and Booking checks the token again. The seat availability and hold paths under `/api/v1/events/{id}/...` are added with the pull requests that build those endpoints, and they must be listed before the general events route, which sends everything else under events to Catalog.
 - **2026-11-22, availability route and limit (Phase 4b, PR 9).** `GET /api/v1/events/{eventId}/availability` goes to Booking, not Catalog. Because the general events route also matches it, the route function has the highest `@Order` and is tried first; a test with two stand-in services checks that it, and not Catalog, answers, and that the other event paths still go to Catalog. The path is public (no token), 304 and `ETag` pass through, and it cannot be written through the gateway. Availability requests are counted in their own group, `ticketflow.gateway.limits.availability-per-minute` (default 60 per address per minute, `GATEWAY_AVAILABILITY_LIMIT_PER_MINUTE`), so a seat map that polls does not use up the budget for browsing.
+- **2026-11-22, where holds live (Phase 4b, PR 10).** A hold is a booking, so it is created with `POST /api/v1/bookings`, not below `/events/{id}`; the route table above no longer lists `/events/*/holds`. Nothing new is needed in the gateway: `/api/v1/bookings` was already routed to Booking and already needs a token. Only the public availability path stays below `/events`.

@@ -77,5 +77,11 @@ ticketflow:
     # How long the list of unavailable seats of an event is reused (ADR-0011: one or two seconds).
     availability:
       cache-ttl: 2s
+    # Holds (ADR-0012): at most 8 seats, 10 minutes, and a seat that another request is changing is waited for at most
+    # 2 seconds. Other defaults: HoldProperties.
+    holds:
+      max-seats: 8
+      duration: 10m
+      lock-timeout: 2s
     jwt:
       jwks-uri: ${IDENTITY_URI:http://localhost:18082}/.well-known/jwks.json

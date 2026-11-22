@@ -61,8 +61,8 @@ event_json='{"title":"Smoke","startsAt":"2099-01-01T18:00:00Z","venueName":"Hall
 check "events: create without a token is refused" 401 "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d "$event_json" "$WEB/api/v1/events")"
 check "events: a customer may not create an event" 403 "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $access" -H 'Content-Type: application/json' -d "$event_json" "$WEB/api/v1/events")"
 check "events: a customer may not list my events" 403 "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $access" "$WEB/api/v1/events/mine")"
-# Booking (ADR-0013): its paths need a token at the gateway; with a token the request reaches Booking, which has no
-# booking endpoints yet and answers with its own 404 (code NOT_FOUND; the gateway's own 404 has ROUTE_NOT_FOUND).
+# Booking (ADR-0013): its paths need a token at the gateway; with a token the request reaches Booking. Reading a booking
+# does not exist yet, so Booking answers with its own 404 (code NOT_FOUND; the gateway's own 404 has ROUTE_NOT_FOUND).
 check "bookings: without a token is refused" 401 "$(curl -s -o /dev/null -w '%{http_code}' "$WEB/api/v1/bookings/3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50")"
 booking_answer="$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $access" "$WEB/api/v1/bookings/3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50")"
 check "bookings: with a token the request reaches Booking" 404 "$(printf '%s' "$booking_answer" | tail -1)"
@@ -73,6 +73,12 @@ unknown_event=3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50
 availability="$(curl -s -w '\n%{http_code}' "$WEB/api/v1/events/$unknown_event/availability")"
 check "availability: public, without a token" 404 "$(printf '%s' "$availability" | tail -1)"
 contains "availability: answered by Booking" '"code":"EVENT_NOT_ON_SALE"' "$availability"
+# Holding seats (ADR-0012): the path is Booking's, needs a token and an Idempotency-Key. An event without seats is "not
+# on sale", which proves that a real access token from Identity is accepted by Booking and the request body arrives.
+hold_body="{\"eventId\":\"$unknown_event\",\"seatIds\":[\"$unknown_event\"]}"
+hold_answer="$(curl -s -w '\n%{http_code}' -X POST -H "Authorization: Bearer $access" -H 'Content-Type: application/json' -H "Idempotency-Key: $unknown_event" -d "$hold_body" "$WEB/api/v1/bookings")"
+check "holds: an event that is not on sale" 404 "$(printf '%s' "$hold_answer" | tail -1)"
+contains "holds: the refusal comes from Booking" '"code":"EVENT_NOT_ON_SALE"' "$hold_answer"
 first="$(cookie_of "$login")"
 refreshed="$(auth refresh -H "Cookie: refresh_token=$first")"
 check "auth: refresh" 200 "$(status_of "$refreshed")"

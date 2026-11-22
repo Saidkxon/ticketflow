@@ -1,5 +1,8 @@
 package com.ticketflow.booking.web;
 
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -11,12 +14,19 @@ public class ApiException extends RuntimeException {
     private final HttpStatus status;
     private final String code;
     private final String title;
+    private final Map<String, Object> properties;
 
     public ApiException(HttpStatus status, String code, String title, String detail) {
+        this(status, code, title, detail, Map.of());
+    }
+
+    /** {@code properties} are extra fields of the problem body (ADR-0009), such as the list of unavailable seats. */
+    public ApiException(HttpStatus status, String code, String title, String detail, Map<String, Object> properties) {
         super(detail);
         this.status = status;
         this.code = code;
         this.title = title;
+        this.properties = Map.copyOf(properties);
     }
 
     public HttpStatus status() {
@@ -29,6 +39,10 @@ public class ApiException extends RuntimeException {
 
     public String title() {
         return title;
+    }
+
+    public Map<String, Object> properties() {
+        return properties;
     }
 
     public static ApiException unauthenticated() {
@@ -70,5 +84,39 @@ public class ApiException extends RuntimeException {
     public static ApiException preconditionFailed() {
         return new ApiException(HttpStatus.PRECONDITION_FAILED, "PRECONDITION_FAILED", "Precondition failed",
                 "The event was changed by someone else. Load it again and retry.");
+    }
+
+    public static ApiException idempotencyKeyRequired() {
+        return new ApiException(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency key required",
+                "Send an Idempotency-Key header with a UUID of your choice.");
+    }
+
+    public static ApiException idempotencyKeyReused() {
+        return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "IDEMPOTENCY_KEY_REUSED", "Idempotency key reused",
+                "This Idempotency-Key was already used for a different request.");
+    }
+
+    /** Only if a stored key has no booking yet, which the transaction rules should make impossible. */
+    public static ApiException requestInProgress() {
+        return new ApiException(HttpStatus.CONFLICT, "REQUEST_IN_PROGRESS", "Request in progress",
+                "The first request with this Idempotency-Key is still running. Try again shortly.");
+    }
+
+    /** ADR-0012 and ADR-0009: the answer to a hold that cannot be given names the seats that are not free. */
+    public static ApiException seatsUnavailable(List<UUID> unavailableSeatIds) {
+        return new ApiException(HttpStatus.CONFLICT, "SEATS_UNAVAILABLE", "Seats are not available",
+                "One or more of the seats are not available. Nothing was held.",
+                Map.of("unavailableSeatIds", List.copyOf(unavailableSeatIds)));
+    }
+
+    /** The seats were being changed by other requests for longer than the lock timeout (ADR-0012). */
+    public static ApiException seatsBusy() {
+        return new ApiException(HttpStatus.CONFLICT, "SEATS_BUSY", "Seats are busy",
+                "Other customers are choosing the same seats right now. Try again in a moment.");
+    }
+
+    public static ApiException activeHoldExists() {
+        return new ApiException(HttpStatus.CONFLICT, "ACTIVE_HOLD_EXISTS", "You already hold seats",
+                "You already hold seats for this event. Finish or release that booking first.");
     }
 }
