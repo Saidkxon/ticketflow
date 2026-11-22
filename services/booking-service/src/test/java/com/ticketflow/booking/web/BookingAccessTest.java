@@ -50,7 +50,7 @@ class BookingAccessTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
-    void aSignedInUserGetsTheStandardNotFoundForAPathThatDoesNotExistYet() throws Exception {
+    void aSignedInUserGetsTheStandardNotFoundForABookingThatDoesNotExist() throws Exception {
         String token = tokenFor(UUID.randomUUID(), "CUSTOMER");
 
         mockMvc.perform(get("/api/v1/bookings/" + UUID.randomUUID()).header("Authorization", "Bearer " + token))

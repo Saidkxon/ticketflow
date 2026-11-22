@@ -119,4 +119,15 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.CONFLICT, "ACTIVE_HOLD_EXISTS", "You already hold seats",
                 "You already hold seats for this event. Finish or release that booking first.");
     }
+
+    /** Also used for a booking of somebody else: the caller must not learn that it exists. */
+    public static ApiException bookingNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Not found", "The booking was not found.");
+    }
+
+    /** Only a hold that is still running can be released; an expired one has already lost its seats. */
+    public static ApiException bookingNotActive() {
+        return new ApiException(HttpStatus.CONFLICT, "BOOKING_NOT_ACTIVE", "Booking is not active",
+                "The hold of this booking has ended, so there is nothing to release.");
+    }
 }
