@@ -15,10 +15,10 @@ import org.springframework.stereotype.Repository;
  * instead of writing its own copy.
  */
 @Repository
-class SeatAvailabilityRepository implements UnavailableSeats {
+public class SeatAvailabilityRepository implements UnavailableSeats {
 
     /** The condition, written once, for the seat table aliased as {@code s}. */
-    static final String UNAVAILABLE =
+    public static final String UNAVAILABLE =
             "(s.state = 'SOLD' OR (s.state = 'HELD' AND s.held_until > now()))";
 
     /**

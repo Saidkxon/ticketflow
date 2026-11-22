@@ -6,17 +6,20 @@ info:
     Public API of the Booking service, reached through the API gateway (ADR-0002, ADR-0013).
     This file is the source of truth: a change to behavior starts with a change here (ADR-0009, part E).
 
-    Scope today: seat availability of an event. Holds, bookings and the "my bookings" list are added by later
-    pull requests; additive changes do not create a new major version (ADR-0009, part A).
+    Scope today: seat availability of an event, and holding seats. Reading, releasing and listing bookings are added
+    by later pull requests; additive changes do not create a new major version (ADR-0009, part A).
 
-    **Error codes used by this API today:** `EVENT_NOT_ON_SALE`, `INVALID_REQUEST`, `RATE_LIMITED`,
-    `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
+    **Error codes used by this API today:** `EVENT_NOT_ON_SALE`, `INVALID_REQUEST`, `UNAUTHENTICATED`,
+    `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`, `REQUEST_IN_PROGRESS`, `SEATS_UNAVAILABLE`,
+    `SEATS_BUSY`, `ACTIVE_HOLD_EXISTS`, `RATE_LIMITED`, `INTERNAL_ERROR`, `UPSTREAM_UNAVAILABLE`.
 servers:
   - url: /api/v1
     description: Same origin as the web app (ADR-0013, rule G10)
 tags:
   - name: availability
     description: Which seats of an event can be taken right now
+  - name: bookings
+    description: Holding seats for a customer
 
 paths:
   /events/{eventId}/availability:
@@ -77,7 +80,101 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
 
+  /bookings:
+    post:
+      tags: [bookings]
+      operationId: holdSeats
+      summary: Hold seats of an event for the signed-in customer
+      description: |
+        Takes the seats for a limited time (10 minutes, counted from the database clock) or takes none of them: a
+        request for several seats either gets every one or changes nothing (ADR-0012). The customer is the user of
+        the access token, never a value in the body. At most 8 seats per hold, and at most one active hold per
+        customer per event.
+
+        `Idempotency-Key` is required (ADR-0009, part C). The same key with the same request (the same event and the
+        same set of seats, in any order) answers 201 with the same booking and holds nothing twice, also when
+        retries run at the same moment. The same key with another request is 422. A request that was refused leaves
+        no key behind, so a retry with the same key is evaluated again.
+
+        A seat is taken when it is free now: available, or held with a deadline that has passed. The answer has
+        `expiresAt` and `serverTime` from the same database clock, so a countdown does not depend on the clock of
+        the device.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: A UUID chosen by the caller. A retry of the same action reuses it; a new action uses a new one.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldRequest'
+      responses:
+        '201':
+          description: The seats are held
+          headers:
+            Cache-Control:
+              description: no-store, the answer is personal
+              schema:
+                type: string
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: |
+            Invalid input: a missing or malformed field (`INVALID_REQUEST`, with an `errors` list), a missing
+            `Idempotency-Key` (`IDEMPOTENCY_KEY_REQUIRED`), no seats, more seats than allowed, the same seat twice,
+            or a seat that is not a seat of this event.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid access token. Code UNAUTHENTICATED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          $ref: '#/components/responses/NotOnSale'
+        '409':
+          description: |
+            Nothing was held. `SEATS_UNAVAILABLE`: at least one seat is not free; the body has
+            `unavailableSeatIds`. `ACTIVE_HOLD_EXISTS`: the customer already holds seats of this event.
+            `SEATS_BUSY`: other customers were changing the same seats for longer than the server waits; try again
+            in a moment. `REQUEST_IN_PROGRESS`: the first request with this key has not finished.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/SeatConflict'
+        '422':
+          description: The `Idempotency-Key` was already used for a different request. Code IDEMPOTENCY_KEY_REUSED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     EventId:
       name: eventId
@@ -112,6 +209,87 @@ components:
           items:
             type: string
             format: uuid
+    HoldRequest:
+      type: object
+      required: [eventId, seatIds]
+      additionalProperties: false
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        seatIds:
+          type: array
+          description: Seat IDs from the layout of the event; one to eight, each at most once
+          minItems: 1
+          maxItems: 8
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    Booking:
+      type: object
+      required: [id, eventId, status, currency, totalMinor, expiresAt, serverTime, seats]
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          description: HELD today; later pull requests add the other statuses
+          enum: [HELD]
+        currency:
+          type: string
+          description: Three-letter code of the event's currency
+          examples: [UZS]
+        totalMinor:
+          type: integer
+          format: int64
+          description: Sum of the seat prices in the smallest currency unit (ADR-0005)
+        expiresAt:
+          type: string
+          format: date-time
+          description: The hold deadline, database time plus the hold duration
+        serverTime:
+          type: string
+          format: date-time
+          description: The database clock when this answer was made; count down from the difference
+        seats:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingSeat'
+    BookingSeat:
+      type: object
+      required: [seatId, section, row, number, tier, priceMinor]
+      properties:
+        seatId:
+          type: string
+          format: uuid
+        section:
+          type: string
+        row:
+          type: string
+        number:
+          type: integer
+        tier:
+          type: string
+        priceMinor:
+          type: integer
+          format: int64
+          description: The price when the seat was held, in the smallest currency unit
+    SeatConflict:
+      description: A refused hold (Problem), with the seats that were not free when the code is SEATS_UNAVAILABLE
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            unavailableSeatIds:
+              type: array
+              items:
+                type: string
+                format: uuid
     Problem:
       type: object
       description: RFC 9457 Problem Details with our stable machine-readable code (ADR-0009, part B)
