@@ -147,3 +147,4 @@ stateDiagram-v2
 
 - Charter v1.0: FR-8 to FR-12, NFR-1, NFR-3
 - ADR-0012 ("Payment in flight"), ADR-0002 (rule 5), ADR-0003 (rules 1-4)
+- **2026-11-22, `BookingExpired` as built (Phase 4b, PR 11).** The first of the events listed above is written, with its schema in `contracts/events/booking-expired.v1.schema.json`: it says that a HELD booking ran out of time and its seats are free again. `data` has `bookingId`, `eventId`, `userId` and `expiredAt` (the deadline that passed); there is no personal data beyond identifiers. For now a booking has the statuses HELD and EXPIRED; the payment statuses come with Phase 4c. The sweeper that expires bookings is described in ADR-0012. Expiry from `PAYMENT_PENDING` (the grace period, rule R6) is not built yet.

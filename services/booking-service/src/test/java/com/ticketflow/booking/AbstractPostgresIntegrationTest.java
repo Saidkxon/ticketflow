@@ -50,6 +50,9 @@ public abstract class AbstractPostgresIntegrationTest {
         // No availability cache in the integration tests, so they see every change at once; the cache has its own tests.
         registry.add("ticketflow.booking.availability.cache-ttl", () -> "0s");
         registry.add("ticketflow.booking.provisioning.retry-delay", () -> "1s");
+        // The outbox relay and the expiry sweeper do not run by themselves in tests: a test that needs one calls it.
+        registry.add("ticketflow.booking.outbox.schedule-enabled", () -> "false");
+        registry.add("ticketflow.booking.expiry.schedule-enabled", () -> "false");
         registry.add("ticketflow.booking.jwt.jwks-uri",
                 () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort() + "/.well-known/jwks.json");
     }

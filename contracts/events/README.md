@@ -16,5 +16,8 @@ Every event is one JSON message, described by a JSON Schema file in this folder 
 | Event | Producer | Routing key | Schema | Consumer queue |
 |---|---|---|---|---|
 | LayoutPublished | Catalog | `catalog.layout-published` | [layout-published.v1.schema.json](layout-published.v1.schema.json) | `booking.catalog.layout-published` (Booking), with `.retry` and `.dlq` next to it |
+| BookingExpired | Booking | `booking.booking-expired` | [booking-expired.v1.schema.json](booking-expired.v1.schema.json) | none yet; Notification will own `notification.booking.booking-expired` (Phase 4c) |
 
 A consumer names its queue `<consumer>.<routing key>`, and its retry and dead-letter queues by adding `.retry` and `.dlq`.
+
+Until a consumer's queue exists, a message waits in its producer's outbox (see "No queue yet" above). That is the case for `BookingExpired` until Notification is built: the rows stay in Booking's outbox and are published when the queue appears.

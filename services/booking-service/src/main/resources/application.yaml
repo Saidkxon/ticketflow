@@ -83,5 +83,11 @@ ticketflow:
       max-seats: 8
       duration: 10m
       lock-timeout: 2s
+    # Booking's own outbox relay publishes the events Booking writes (ADR-0003). Other defaults: OutboxProperties.
+    outbox:
+      interval: PT1S
+    # The sweeper releases the seats of holds that ran out and announces them (ADR-0012). Other defaults: ExpiryProperties.
+    expiry:
+      interval: PT10S
     jwt:
       jwks-uri: ${IDENTITY_URI:http://localhost:18082}/.well-known/jwks.json
