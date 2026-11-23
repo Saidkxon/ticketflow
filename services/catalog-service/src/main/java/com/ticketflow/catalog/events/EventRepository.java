@@ -69,6 +69,23 @@ class EventRepository {
                 .list();
     }
 
+    /** One published event as the public sees it; empty for a draft or an unknown ID. */
+    Optional<EventSummary> findPublished(UUID id) {
+        return jdbc.sql("SELECT id, title, starts_at, venue_name, city, venue_latitude, venue_longitude "
+                        + "FROM events WHERE id = :id AND published_at IS NOT NULL")
+                .param("id", id)
+                .query((rs, rowNum) -> new EventSummary(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("title"),
+                        rs.getObject("starts_at", OffsetDateTime.class).toInstant(),
+                        rs.getString("venue_name"),
+                        rs.getString("city"),
+                        rs.getObject("venue_latitude", Double.class),
+                        rs.getObject("venue_longitude", Double.class),
+                        null))
+                .optional();
+    }
+
     long countMatching(EventSearch search) {
         Map<String, Object> params = new HashMap<>();
         String filter = filters(search, params);
