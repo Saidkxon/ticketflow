@@ -192,6 +192,41 @@ paths:
           $ref: '#/components/responses/Unavailable'
 
   /events/{eventId}:
+    get:
+      tags: [events]
+      operationId: getPublishedEvent
+      summary: Read one published event
+      description: |
+        Public, no token. The event page of the web app loads this, so an event has a link that can be shared. A
+        draft and an unknown event are both 404, so nobody can tell them apart. A published event cannot be edited, so
+        the answer may be kept by caches for a minute. `distanceKm` is always null here (it belongs to a near search).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: The event
+          headers:
+            Cache-Control:
+              description: public with a max-age of 60 seconds
+              schema:
+                type: string
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventSummary'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
     put:
       tags: [organizer]
       operationId: updateEvent

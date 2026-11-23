@@ -1,8 +1,10 @@
 package com.ticketflow.catalog.events;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -109,6 +111,59 @@ class EventControllerTest extends AbstractPostgresIntegrationTest {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.errors[0].field").value(expectedField))
                 .andExpect(jsonPath("$.errors[0].problem").isString());
+    }
+
+    // ---- one published event (the event page)
+
+    @Test
+    void aPublishedEventIsReadByItsIdWithoutAToken() throws Exception {
+        UUID id = UUID.randomUUID();
+        jdbc.sql("INSERT INTO events (id, title, starts_at, published_at, owner_id, venue_name, city, "
+                        + "venue_latitude, venue_longitude) VALUES (:id, 'Concert', :startsAt, now(), :owner, "
+                        + "'Main Hall', 'Tashkent', 41.3, 69.2)")
+                .param("id", id)
+                .param("startsAt", OffsetDateTime.parse("2026-12-01T18:00:00Z"))
+                .param("owner", UUID.randomUUID())
+                .update();
+
+        mockMvc.perform(get("/api/v1/events/" + id))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(header().string("Cache-Control", containsString("max-age=60")))
+                .andExpect(jsonPath("$.id").value(id.toString()))
+                .andExpect(jsonPath("$.title").value("Concert"))
+                .andExpect(jsonPath("$.startsAt").value("2026-12-01T18:00:00Z"))
+                .andExpect(jsonPath("$.venueName").value("Main Hall"))
+                .andExpect(jsonPath("$.city").value("Tashkent"))
+                .andExpect(jsonPath("$.venueLatitude").value(41.3))
+                .andExpect(jsonPath("$.venueLongitude").value(69.2))
+                .andExpect(jsonPath("$.distanceKm").doesNotExist());
+    }
+
+    @Test
+    void aDraftAndAnUnknownEventLookTheSame() throws Exception {
+        UUID draft = UUID.randomUUID();
+        jdbc.sql("INSERT INTO events (id, title, starts_at, owner_id, venue_name, city) "
+                        + "VALUES (:id, 'Draft', :startsAt, :owner, 'Main Hall', 'Tashkent')")
+                .param("id", draft)
+                .param("startsAt", OffsetDateTime.parse("2026-12-01T18:00:00Z"))
+                .param("owner", UUID.randomUUID())
+                .update();
+
+        mockMvc.perform(get("/api/v1/events/" + draft))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        mockMvc.perform(get("/api/v1/events/" + UUID.randomUUID()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    void anIdThatIsNotAUuidIsRefused() throws Exception {
+        mockMvc.perform(get("/api/v1/events/not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     private void insert(String title, String startsAt, boolean published) {

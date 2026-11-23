@@ -64,7 +64,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Read one published event
+         * @description Public, no token. The event page of the web app loads this, so an event has a link that can be shared. A
+         *     draft and an unknown event are both 404, so nobody can tell them apart. A published event cannot be edited, so
+         *     the answer may be kept by caches for a minute. `distanceKm` is always null here (it belongs to a near search).
+         */
+        get: operations["getPublishedEvent"];
         /**
          * Change a draft event
          * @description Needs an access token with the ORGANIZER role, and the event must be the caller's own. Replaces title,
@@ -559,6 +565,36 @@ export interface operations {
             400: components["responses"]["InvalidRequest"];
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    getPublishedEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event */
+            200: {
+                headers: {
+                    /** @description public with a max-age of 60 seconds */
+                    "Cache-Control"?: string;
+                    "X-Correlation-ID": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventSummary"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["Unavailable"];

@@ -5,13 +5,16 @@ import static com.ticketflow.catalog.events.OrganizerRequests.organizerOf;
 import static com.ticketflow.catalog.events.OrganizerRequests.versionFrom;
 
 import com.ticketflow.catalog.security.VerifiedToken;
+import com.ticketflow.catalog.web.ApiException;
 import com.ticketflow.catalog.web.FieldProblem;
 import com.ticketflow.catalog.web.InvalidRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -66,6 +69,16 @@ class EventController {
         VerifiedToken organizer = organizerOf(request);
         EventDetail event = service.getOwned(organizer.userId(), eventId);
         return ResponseEntity.ok().header(HttpHeaders.ETAG, etagOf(event.version())).body(event);
+    }
+
+    /**
+     * One published event, for the event page. Public. A draft or unknown event looks missing. A published event
+     * cannot be edited (ADR-0012), so the answer may be kept by caches for a minute.
+     */
+    @GetMapping("/api/v1/events/{eventId}")
+    ResponseEntity<EventSummary> publishedEvent(@PathVariable UUID eventId) {
+        EventSummary event = events.findPublished(eventId).orElseThrow(ApiException::eventNotFound);
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofSeconds(60)).cachePublic()).body(event);
     }
 
     @PostMapping("/api/v1/events")
