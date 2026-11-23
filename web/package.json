@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "generate:api": "openapi-typescript ../contracts/catalog.openapi.yaml -o src/api/catalog.schema.d.ts && openapi-typescript ../contracts/identity.openapi.yaml -o src/api/identity.schema.d.ts"
+    "generate:api": "openapi-typescript ../contracts/catalog.openapi.yaml -o src/api/catalog.schema.d.ts && openapi-typescript ../contracts/identity.openapi.yaml -o src/api/identity.schema.d.ts && openapi-typescript ../contracts/booking.openapi.yaml -o src/api/booking.schema.d.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "5.107.1",

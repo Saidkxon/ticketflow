@@ -5,7 +5,7 @@
 | **Status** | Approved by the instructor, 2026-11-16. Revised 2026-11-21: Part 1 and Part 1b are done (L3 in review); Parts 2 and 3 are next |
 | **Goal** | A customer can browse events, pick specific seats on an interactive map and hold them; an organizer can create, lay out and publish an event |
 | **Out of scope** | Payment, confirmation, cancel after confirmation and notifications (Phase 4c, ADR-0006) |
-| **Estimate** | 17 pull requests plus 3 location pull requests (L1-L3). Done: 16 (Part 1: 6, Part 1b: 3, Part 2: 7). Left in this phase: 5 (Part 3: 5; PR 13 was split in three, see below). My estimate for what is left: about 3 weeks |
+| **Estimate** | 17 pull requests plus 3 location pull requests (L1-L3). Done: 17 (Part 1: 6, Part 1b: 3, Part 2: 7, Part 3: 1). Left in this phase: 4 (Part 3: 4; PR 13 was split in three, see below). My estimate for what is left: about 3 weeks |
 
 ## Why Part 1 exists
 
@@ -50,8 +50,8 @@ The coordinates on events and the "near me" search on the server are done (PR 4)
 
 | # | Pull request | Delivers |
 |---|---|---|
-| 13a | Public event endpoint (in review) | `GET /api/v1/events/{id}`: one published event for the event page, with a link that can be shared. Found while planning 13: the web app had no way to load a single event, only the list. A draft or unknown ID is 404. |
-| 13b | Event page and seat map | The page for one event, an SVG seat map from the frozen layout (interactive and keyboard accessible, price and running total), polling behind a `SeatAvailabilitySource` interface (ADR-0011) with a cancelled request (AbortController) when the person leaves the page. Smoothness measured with about 2,000 seats (NFR-10). |
+| 13a | Public event endpoint (done) | `GET /api/v1/events/{id}`: one published event for the event page, with a link that can be shared. Found while planning 13: the web app had no way to load a single event, only the list. A draft or unknown ID is 404. |
+| 13b | Event page and seat map (in review) | The page for one event, an SVG seat map from the frozen layout (interactive and keyboard accessible, price and running total), polling behind a `SeatAvailabilitySource` interface (ADR-0011) with a cancelled request (AbortController) when the person leaves the page. Checked with a 2,000-seat map in a real browser (NFR-10). |
 | 13c | "Near me" | A "Near me" button and the distance on event cards (the browser position is sent once as a search value and never stored, ADR-0015). |
 | 14 | Hold flow | Select, hold, countdown from the server time, graceful expiry and "seat taken" handling (FR-15). |
 | 15 | Wrap-up | Smoke test extended, ADR clarifications, load check of the hold endpoint. |

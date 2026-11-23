@@ -5,6 +5,8 @@ import { afterEach } from 'vitest';
 // Testing Library only cleans up by itself when test globals are on; we keep them off, so do it here.
 afterEach(() => {
   cleanup();
+  // A test must not see the page state (for example a chosen seat) that an earlier test kept in the tab.
+  window.sessionStorage.clear();
 });
 
 // jsdom has no geolocation. By default a test gets a browser that allows location and never reports a movement, so a
