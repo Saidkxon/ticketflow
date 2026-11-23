@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router';
 import { AccountPage } from './pages/AccountPage';
+import { EventPage } from './pages/EventPage';
 import { AdminLocationsPage } from './pages/AdminLocationsPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
@@ -17,6 +18,7 @@ export function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
+        <Route path="events/:eventId" element={<EventPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route

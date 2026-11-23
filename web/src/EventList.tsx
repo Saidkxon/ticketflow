@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router';
 import { ApiError, fetchEvents } from './api/events';
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'short' });
@@ -51,7 +52,9 @@ export function EventList() {
     <ul aria-label="Events">
       {data.items.map((event) => (
         <li key={event.id}>
-          <strong>{event.title}</strong>
+          <Link to={`/events/${event.id}`}>
+            <strong>{event.title}</strong>
+          </Link>
           <br />
           <time dateTime={event.startsAt}>{dateFormat.format(new Date(event.startsAt))}</time>
         </li>
