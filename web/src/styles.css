@@ -280,3 +280,13 @@ fieldset {
 .selection ul {
   padding-left: 1.2rem;
 }
+
+/* "Near me" on the event list (PR 13c). */
+.near-me {
+  margin: 0.5rem 0 1rem;
+}
+
+.near-me-note {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}

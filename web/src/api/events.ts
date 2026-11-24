@@ -7,8 +7,21 @@ export type EventSummary = components['schemas']['EventSummary'];
 export type PublishedLayout = components['schemas']['PublishedLayout'];
 export { ApiError } from './problem';
 
-export async function fetchEvents(page = 0, size = 20): Promise<EventPage> {
-  const response = await fetch(`/api/v1/events?page=${page}&size=${size}`);
+/** A "near me" search: the point of the visitor and how far to look. Used for this request only (ADR-0015). */
+export interface NearSearch {
+  latitude: number;
+  longitude: number;
+  radiusKm: number;
+}
+
+export async function fetchEvents(page = 0, size = 20, near?: NearSearch): Promise<EventPage> {
+  const query = new URLSearchParams({ page: String(page), size: String(size) });
+  if (near) {
+    query.set('nearLatitude', String(near.latitude));
+    query.set('nearLongitude', String(near.longitude));
+    query.set('radiusKm', String(near.radiusKm));
+  }
+  const response = await fetch(`/api/v1/events?${query}`);
   if (!response.ok) {
     throw await toApiError(response);
   }
