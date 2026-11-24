@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | Approved by the instructor, 2026-11-16. Revised 2026-11-21: Part 1 and Part 1b are done (L3 in review); Parts 2 and 3 are next |
+| **Status** | Approved by the instructor, 2026-11-16. Revised 2026-11-24: Parts 1, 1b and 2 are done and Part 3 is done except the close-out (PR 15) |
 | **Goal** | A customer can browse events, pick specific seats on an interactive map and hold them; an organizer can create, lay out and publish an event |
 | **Out of scope** | Payment, confirmation, cancel after confirmation and notifications (Phase 4c, ADR-0006) |
-| **Estimate** | 17 pull requests plus 3 location pull requests (L1-L3). Done: 19 (Part 1: 6, Part 1b: 3, Part 2: 7, Part 3: 3). Left in this phase: 2 (Part 3: 2; PR 13 was split in three, see below). My estimate for what is left: about 3 weeks |
+| **Estimate** | 17 pull requests plus 3 location pull requests (L1-L3). Done: 20 (Part 1: 6, Part 1b: 3, Part 2: 7, Part 3: 4). Left in this phase: 1 (PR 15, a small close-out; PR 13 was split in three, see below). Two checks planned for PR 15 moved to Phase 4c (see "Moved out of Phase 4b") |
 
 ## Why Part 1 exists
 
@@ -53,14 +53,31 @@ The coordinates on events and the "near me" search on the server are done (PR 4)
 | 13a | Public event endpoint (done) | `GET /api/v1/events/{id}`: one published event for the event page, with a link that can be shared. Found while planning 13: the web app had no way to load a single event, only the list. A draft or unknown ID is 404. |
 | 13b | Event page and seat map (done) | The page for one event, an SVG seat map from the frozen layout (interactive and keyboard accessible, price and running total), polling behind a `SeatAvailabilitySource` interface (ADR-0011) with a cancelled request (AbortController) when the person leaves the page. Checked with a 2,000-seat map in a real browser (NFR-10). |
 | 13c | "Near me" (done) | A "Near me" button, a choice of distance (10 to 500 km, default 50) and the distance on event cards. The position is read once per search, rounded to about a kilometre, kept only in memory and never stored (ADR-0015). |
-| 14 | Hold flow (in review) | A "Hold seats" button (a signed-out person is sent to sign in and the choice is kept), one `Idempotency-Key` per choice of seats (a retry reuses it), a countdown from the server's `expiresAt` and `serverTime` on the device's monotonic clock, a release button, a hold that is found again after a refresh, and clear messages for `SEATS_UNAVAILABLE`, `ACTIVE_HOLD_EXISTS`, `SEATS_BUSY`, rate limits and an expired hold (FR-15). Payment does not exist yet: the page says so. |
-| 15 | Wrap-up | Smoke test extended, ADR clarifications, load check of the hold endpoint. |
+| 14 | Hold flow (done) | A "Hold seats" button (a signed-out person is sent to sign in and the choice is kept), one `Idempotency-Key` per choice of seats (a retry reuses it), a countdown from the server's `expiresAt` and `serverTime` on the device's monotonic clock, a release button, a hold that is found again after a refresh, and clear messages for `SEATS_UNAVAILABLE`, `ACTIVE_HOLD_EXISTS`, `SEATS_BUSY`, rate limits and an expired hold (FR-15). Payment does not exist yet: the page says so. |
+| 15 | Close-out (in review) | Documentation only: the plan, the exit checks below, and a note in ADR-0004 about one login per browser profile. The smoke test's full hold path and the load check of the hold endpoint moved to Phase 4c, see below. |
+
+## Phase 4b exit checks (by hand, before Phase 4c starts)
+
+Run on a fresh stack (`docker compose -f deploy/compose.yaml --profile app up -d --build --wait`, then `bash scripts/smoke-test.sh`, all `ok`). Two different users need two different browser profiles (or a private window): the login cookie belongs to the whole profile (ADR-0004, note of 2026-11-24).
+
+1. **Hold:** signed in, choose 2 seats of a published event and hold them. The panel shows both seats, the total and a countdown that starts near 10:00. The choice is cleared.
+2. **Refresh:** reload the page. The same hold and a countdown that continues.
+3. **Another user:** in a second profile, sign in as another user and open the event. The two seats are hatched ("Not available") and cannot be chosen.
+4. **Release:** release the hold. The seats become free for both users within a few seconds.
+5. **Expiry:** hold seats and wait for the countdown to reach 0:00. The page says the hold ended, and the seats are free for the other user.
+6. **Seat taken while choosing:** the second user holds a seat that the first user has chosen but not held. The first user's choice loses that seat, with a message, and holding the rest works.
+7. **Signed out:** choose a seat without signing in. The page offers sign-in, and the choice is still there after signing in.
+8. **Near me:** the search finds the event with a distance, and "Show all events" brings the full list back.
+
+## Moved out of Phase 4b
+
+Found while planning PR 15 (2026-11-24): a smoke test of the whole hold path, and a load check of the hold endpoint, both need a published event with seats. Only an organizer can create one, and in a clean stack nobody has that role, because only an admin can grant it (ADR-0004). Both checks therefore start in Phase 4c with a test-only bootstrap of an admin and an organizer in the CI stack. The load targets stay as written in the Phase 5 row: availability p95 under 200 ms with 50 pollers, holds p95 under 500 ms with 50 users.
 
 ## What comes after Phase 4b (estimates, re-checked at the start of each phase)
 
 | Phase | What is left to do | Rough size |
 |---|---|---|
-| 4c | Payment service with a fake provider (success, failure, timeout) and Notification service; Booking confirmation, cancel and refund flow; web checkout and "my tickets" screens; the whole path from browsing to a confirmed ticket in the smoke test (ADR-0006) | about 12-15 PRs, about 3 weeks |
+| 4c | A test-only bootstrap of an admin and an organizer in the CI stack, so the smoke test can publish an event and hold seats, plus the load check of the hold endpoint (moved from Phase 4b); Payment service with a fake provider (success, failure, timeout) and Notification service; Booking confirmation, cancel and refund flow; web checkout and "my tickets" screens; the whole path from browsing to a confirmed ticket in the smoke test (ADR-0006) | about 12-15 PRs, about 3 weeks |
 | UX | A design pass over all screens: design system, layout, accessibility, phone widths. The screens are plain on purpose until now | about 1-2 weeks |
 | 5 | Production Compose with resource limits, deploy job, VPS and HTTPS (browser location needs https), edge proxy with the real client address, nightly off-server backups, CI that runs only what a change touches, gateway retries, secret scanning, Maven wrapper checksum, dependency audit (npm and Maven), cleaning old refresh tokens, cleaning published outbox rows, a Booking reconciliation check that finds published events Booking has no seats for and repairs them (found on 2026-11-23: an event published before Booking existed was never provisioned), a filter on `GET /bookings` (by event and status) so the web app can find a customer's hold without reading a page of bookings, keeping the "Near me" point out of the edge proxy's access log (the log records the whole request address), load tests, a security review, location, booking and payment paths added to the gateway's protected prefixes, and the legal review of location data before real users (ADR-0015) | about 12-15 PRs, about 2-3 weeks |
 
