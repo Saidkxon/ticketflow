@@ -1,0 +1,74 @@
+# Phase 4c plan: Payment, confirmation and tickets
+
+| | |
+|---|---|
+| **Status** | Draft, 2026-11-24. Waiting for the instructor's approval and for answers to the questions below |
+| **Goal** | A customer can pay for held seats with a simulated provider and get a confirmed booking, see their tickets, cancel and get a refund, and is notified by email. Every failure path ends in a clear final state with money returned when it should be (ADR-0006) |
+| **Out of scope** | A real payment provider, partial refunds, several payment methods, QR codes on tickets, an organizer sales dashboard (FR-17 is planned after the UX pass), real outgoing email (Phase 5) |
+| **Estimate** | 15 pull requests (numbers 16 to 30 continue the numbering of Phase 4b). About 3 weeks at 10 to 15 hours a week. This is the riskiest phase so far: money, concurrency and three services in one flow |
+
+## What this phase builds on
+
+- **ADR-0006** decides the whole flow: Booking owns the state machine, Payment is a participant, Notification only reacts to events. The rules R1 to R8 and the nine test obligations are the specification of this phase. Nothing here changes them.
+- **ADR-0002, ADR-0003, ADR-0009:** one quick idempotent call from Booking to Payment, the result as an event through the outbox, schemas in `contracts/`, consumers that tolerate duplicates.
+- **Phase 4b** gave us holds, expiry and release, and a web app that holds seats. The hold panel already says "Payment is not available yet"; PR 28 replaces that sentence with a button.
+
+## Part 0: Test data for the stack (1 pull request)
+
+| # | Pull request | Delivers |
+|---|---|---|
+| 16 | Test organizer and the full hold path in the smoke test | The smoke script creates an organizer without a human: it registers a user and gives that user the `ORGANIZER` role directly in the Identity database of the test stack (the first-admin bootstrap needs an Identity restart and is for operators, ADR-0004). With that organizer the script creates an event with a small layout, publishes it, waits until Booking has the seats, holds seats, releases them, and checks that a second user cannot take held seats. Also the load check promised in Phase 4b: a script that runs 50 simultaneous users against holds and 50 pollers against availability and prints p95 times (targets: holds under 500 ms, availability under 200 ms). Both run on your machine and in CI where it fits |
+
+## Part 1: Payment service (4 pull requests)
+
+| # | Pull request | Delivers |
+|---|---|---|
+| 17 | Payment skeleton | New service: Flyway, token check, health, CI job, Compose service and database, outbox relay copy (ADR-0001 rule R2). Reachable only inside the Docker network; the gateway does not route to it (ADR-0002) |
+| 18 | Payment attempts | The create-attempt call from Booking with its idempotency key (booking ID plus attempt number): the same key returns the same payment and never charges twice (FR-11, test obligation 7). Payment states `PENDING`, `SUCCEEDED`, `FAILED`. Amount and currency come from the call |
+| 19 | Simulated provider | The provider the MVP uses, behind an interface so a real one can replace it. The outcome is chosen by the test card number the customer types, like the test cards of real providers: one number succeeds, one is declined, one times out and then succeeds late, one sends the result twice. A status lookup with the same idempotency key, so a timeout is never reported as a failure before the provider confirms that no charge happened (R5). `PaymentSucceeded` and `PaymentFailed` through the outbox, schemas in `contracts/` |
+| 20 | Refunds in Payment | `RefundRequested` consumer, refund through the provider interface, `REFUND_PENDING` and `REFUNDED`, `RefundSucceeded` event. Idempotent: a redelivered request refunds once (test obligation 8) |
+
+## Part 2: Booking becomes the saga coordinator (5 pull requests)
+
+| # | Pull request | Delivers |
+|---|---|---|
+| 21 | Consuming events | Booking's first consumer: a table of processed event IDs so a redelivered event does nothing (R2), the consumer wiring and retry behaviour, the new statuses `PAYMENT_PENDING` and `CONFIRMED` in the database check, and the attempt counter |
+| 22 | Start payment | `POST /bookings/{id}/pay`. One transaction moves the booking to `PAYMENT_PENDING`, extends the hold by the grace period and records the request; then Booking calls Payment. Lazy expiry and the sweeper must leave seats alone during the grace period (R6). Payment down: the hold simply runs out (test obligation 5) |
+| 23 | Confirmation | The confirmation transaction: lock the seats in order, check that every seat is still held by this booking, set them `SOLD`, the booking `CONFIRMED`, and write `BookingConfirmed` (R1, R2). `PaymentFailed` returns the booking to `HELD` while attempts remain and the hold is valid; the last failure expires it (R3). Tests: duplicate events, confirmation against expiry at the same moment, a retried payment (obligations 1, 3, 4) |
+| 24 | Late and unusable payments | `PaymentSucceeded` after the booking expired or was cancelled, or after the seats went to somebody else: nothing is sold, `RefundRequested` is written (R4). The unknown outcome of a timeout followed by a late success (R5). Tests: obligations 2 and 6 |
+| 25 | Cancel after confirmation | `POST /bookings/{id}/cancel` for a confirmed booking: `CANCELLED`, seats available again, `BookingCancelled` (R7, FR-9). The refund follows through Payment. Tests: obligation 8; the service killed between receiving an event and committing (obligation 9, with a restart test) |
+
+## Part 3: Notification service (2 pull requests)
+
+| # | Pull request | Delivers |
+|---|---|---|
+| 26 | Notification skeleton and delivery log | New service: Flyway, health, CI, Compose, its own database, a consumer of the booking and payment events, a delivery log so one event never sends two emails. It exposes no endpoint to other services (ADR-0002). A mail catcher container (MailHog) in Compose so development sends no real email |
+| 27 | Templates | Emails for a confirmed booking, a payment that failed, a hold that expired, a booking cancelled and a refund made, plus the "payment received after expiry, refunded" mail that ADR-0006 asks for (FR-12). Plain text first, in English |
+
+## Part 4: Web (3 pull requests)
+
+| # | Pull request | Delivers |
+|---|---|---|
+| 28 | Checkout | A "Pay" button in the hold panel, a card form that explains which test cards give which result, the "processing payment" state with polling (ADR-0011), and a clear page for each outcome: confirmed, declined with a chance to retry, expired, refunded. The countdown keeps running through the grace period |
+| 29 | My tickets and cancel | A booking history with status, seats and total (FR-16), a page for one booking, a cancel button with a confirmation step. A booking shows `EXPIRED` for a hold past its deadline, as the API already does |
+| 30 | Wrap-up | The smoke test runs the whole path: browse, hold, pay, confirmed, cancel, refund. The load check from PR 16 runs again with payments. ADR clarifications as built, exit checks by hand, plan close-out |
+
+## Questions for the instructor (the default applies if you do not answer)
+
+1. **Refund on cancel (ADR-0006, open question 1):** full refund at any time before the event. Default: yes, for the MVP.
+2. **Payment attempts per hold:** up to 3. Default: 3.
+3. **Grace period while a payment is in flight:** 2 minutes, once per attempt. Default: 2 minutes.
+4. **Notification channel:** email, with a mail catcher in development and no real sending until Phase 5. Default: yes. (The architecture document marks this as "to confirm at the first Notification slice".)
+5. **Test cards:** the result of a payment is chosen by the card number typed in the checkout form. Default: yes, because it is easy to demonstrate and to test.
+6. **Tickets:** a booking reference is the ticket in the MVP; no QR code and no PDF. Default: yes.
+
+## Risks and how this plan handles them
+
+- **Java and Spring code is not compiled in my sandbox** (Maven Central is unreachable there). Every Java pull request is verified by you with `./mvnw verify` for the services it touches, then Compose and the smoke test, as in Phase 4b. I check syntax and run the SQL checks against PostgreSQL, but a green build on your machine is the proof. The web app is fully checked in my sandbox.
+- **Concurrency and money:** the nine test obligations of ADR-0006 are written as tests in the pull requests above, against a real PostgreSQL and, where an event goes through the broker, a real RabbitMQ (Testcontainers). A pull request that adds a saga rule is not approved without its test.
+- **Three services in one flow:** the order of the parts is chosen so that each pull request is useful and testable alone. Payment can be tried with `curl` before Booking calls it, and Booking can be tried with a stub payment result before the real one exists.
+- **Time:** about 3 weeks is an estimate for the pull requests as listed. If the saga tests find a design problem, the design changes in ADR-0006 first, in its own pull request.
+
+## After this phase
+
+The UX design pass (about 1 to 2 weeks), then Phase 5 (production Compose, VPS and HTTPS, backups, security review, audits and the rest of the list in `docs/plans/phase-4b-booking.md`).
