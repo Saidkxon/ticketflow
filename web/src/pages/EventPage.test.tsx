@@ -2,6 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SessionProvider } from '../auth/SessionContext';
+import { createSessionStore } from '../auth/sessionStore';
+import { fakeApi, token } from '../test/fakeApi';
 import { makeLayout } from '../test/layouts';
 import { EventPage } from './EventPage';
 
@@ -50,15 +53,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderPage(path = '/events/event-1') {
+/** A person who is signed out (the default) or signed in as Ada. */
+function sessionStore(signedIn: boolean) {
+  const api = fakeApi();
+  if (signedIn) {
+    api.refresh.mockResolvedValue(token('access-1'));
+  }
+  return createSessionStore(api);
+}
+
+function renderPage(path = '/events/event-1', options: { signedIn?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <QueryClientProvider client={client}>
-        <Routes>
-          <Route path="events/:eventId" element={<EventPage />} />
-        </Routes>
-      </QueryClientProvider>
+      <SessionProvider store={sessionStore(options.signedIn ?? false)}>
+        <QueryClientProvider client={client}>
+          <Routes>
+            <Route path="events/:eventId" element={<EventPage />} />
+          </Routes>
+        </QueryClientProvider>
+      </SessionProvider>
     </MemoryRouter>,
   );
 }

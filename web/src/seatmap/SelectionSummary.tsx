@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { formatMoney } from '../money';
 import type { SeatShape } from './geometry';
 import { MAX_SEATS_PER_HOLD } from './limits';
@@ -6,10 +7,12 @@ interface Props {
   seats: SeatShape[];
   currency: string;
   onRemove: (seat: SeatShape) => void;
+  /** What the person can do with the choice, for example hold the seats. */
+  action?: ReactNode;
 }
 
 /** The seats the person chose and what they cost together. The server calculates the real total when it holds them. */
-export function SelectionSummary({ seats, currency, onRemove }: Props) {
+export function SelectionSummary({ seats, currency, onRemove, action }: Props) {
   const total = seats.reduce((sum, seat) => sum + seat.priceMinor, 0);
   return (
     <section aria-labelledby="selection-heading" className="selection">
@@ -39,6 +42,7 @@ export function SelectionSummary({ seats, currency, onRemove }: Props) {
               Total: <span data-testid="total">{formatMoney(total, currency)}</span>
             </strong>
           </p>
+          {action}
         </>
       )}
     </section>

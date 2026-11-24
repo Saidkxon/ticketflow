@@ -16,6 +16,8 @@ export class ApiError extends Error {
   readonly fieldErrors: FieldError[];
   /** From the Retry-After header of a 429 or 503: how long the server asks the client to wait. */
   readonly retryAfterSeconds?: number;
+  /** Only on a refused hold (409 SEATS_UNAVAILABLE): the seats that were not free. Empty otherwise. */
+  readonly unavailableSeatIds: string[];
 
   constructor(
     status: number,
@@ -23,6 +25,7 @@ export class ApiError extends Error {
     correlationId?: string,
     fieldErrors: FieldError[] = [],
     retryAfterSeconds?: number,
+    unavailableSeatIds: string[] = [],
   ) {
     super(`${status} ${code}`);
     this.name = 'ApiError';
@@ -31,6 +34,7 @@ export class ApiError extends Error {
     this.correlationId = correlationId;
     this.fieldErrors = fieldErrors;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.unavailableSeatIds = unavailableSeatIds;
   }
 }
 
@@ -43,17 +47,23 @@ function retryAfterOf(response: Response): number | undefined {
   return Number(value.trim());
 }
 
+/** A list of strings from an untrusted JSON value; anything else is an empty list. */
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
 export async function toApiError(response: Response): Promise<ApiError> {
   const headerId = response.headers.get('X-Correlation-ID') ?? undefined;
   const retryAfter = retryAfterOf(response);
   try {
-    const problem = (await response.json()) as Partial<Problem>;
+    const problem = (await response.json()) as Partial<Problem> & { unavailableSeatIds?: unknown };
     return new ApiError(
       response.status,
       problem.code ?? 'UNKNOWN',
       problem.correlationId ?? headerId,
       problem.errors ?? [],
       retryAfter,
+      stringList(problem.unavailableSeatIds),
     );
   } catch {
     return new ApiError(response.status, 'UNKNOWN', headerId, [], retryAfter);

@@ -5,7 +5,7 @@
 | **Status** | Approved by the instructor, 2026-11-16. Revised 2026-11-21: Part 1 and Part 1b are done (L3 in review); Parts 2 and 3 are next |
 | **Goal** | A customer can browse events, pick specific seats on an interactive map and hold them; an organizer can create, lay out and publish an event |
 | **Out of scope** | Payment, confirmation, cancel after confirmation and notifications (Phase 4c, ADR-0006) |
-| **Estimate** | 17 pull requests plus 3 location pull requests (L1-L3). Done: 18 (Part 1: 6, Part 1b: 3, Part 2: 7, Part 3: 2). Left in this phase: 3 (Part 3: 3; PR 13 was split in three, see below). My estimate for what is left: about 3 weeks |
+| **Estimate** | 17 pull requests plus 3 location pull requests (L1-L3). Done: 19 (Part 1: 6, Part 1b: 3, Part 2: 7, Part 3: 3). Left in this phase: 2 (Part 3: 2; PR 13 was split in three, see below). My estimate for what is left: about 3 weeks |
 
 ## Why Part 1 exists
 
@@ -52,8 +52,8 @@ The coordinates on events and the "near me" search on the server are done (PR 4)
 |---|---|---|
 | 13a | Public event endpoint (done) | `GET /api/v1/events/{id}`: one published event for the event page, with a link that can be shared. Found while planning 13: the web app had no way to load a single event, only the list. A draft or unknown ID is 404. |
 | 13b | Event page and seat map (done) | The page for one event, an SVG seat map from the frozen layout (interactive and keyboard accessible, price and running total), polling behind a `SeatAvailabilitySource` interface (ADR-0011) with a cancelled request (AbortController) when the person leaves the page. Checked with a 2,000-seat map in a real browser (NFR-10). |
-| 13c | "Near me" (in review) | A "Near me" button, a choice of distance (10 to 500 km, default 50) and the distance on event cards. The position is read once per search, rounded to about a kilometre, kept only in memory and never stored (ADR-0015). |
-| 14 | Hold flow | Select, hold, countdown from the server time, graceful expiry and "seat taken" handling (FR-15). |
+| 13c | "Near me" (done) | A "Near me" button, a choice of distance (10 to 500 km, default 50) and the distance on event cards. The position is read once per search, rounded to about a kilometre, kept only in memory and never stored (ADR-0015). |
+| 14 | Hold flow (in review) | A "Hold seats" button (a signed-out person is sent to sign in and the choice is kept), one `Idempotency-Key` per choice of seats (a retry reuses it), a countdown from the server's `expiresAt` and `serverTime` on the device's monotonic clock, a release button, a hold that is found again after a refresh, and clear messages for `SEATS_UNAVAILABLE`, `ACTIVE_HOLD_EXISTS`, `SEATS_BUSY`, rate limits and an expired hold (FR-15). Payment does not exist yet: the page says so. |
 | 15 | Wrap-up | Smoke test extended, ADR clarifications, load check of the hold endpoint. |
 
 ## What comes after Phase 4b (estimates, re-checked at the start of each phase)
@@ -62,7 +62,7 @@ The coordinates on events and the "near me" search on the server are done (PR 4)
 |---|---|---|
 | 4c | Payment service with a fake provider (success, failure, timeout) and Notification service; Booking confirmation, cancel and refund flow; web checkout and "my tickets" screens; the whole path from browsing to a confirmed ticket in the smoke test (ADR-0006) | about 12-15 PRs, about 3 weeks |
 | UX | A design pass over all screens: design system, layout, accessibility, phone widths. The screens are plain on purpose until now | about 1-2 weeks |
-| 5 | Production Compose with resource limits, deploy job, VPS and HTTPS (browser location needs https), edge proxy with the real client address, nightly off-server backups, CI that runs only what a change touches, gateway retries, secret scanning, Maven wrapper checksum, dependency audit (npm and Maven), cleaning old refresh tokens, cleaning published outbox rows, a Booking reconciliation check that finds published events Booking has no seats for and repairs them (found on 2026-11-23: an event published before Booking existed was never provisioned), keeping the "Near me" point out of the edge proxy's access log (the log records the whole request address), load tests, a security review, location, booking and payment paths added to the gateway's protected prefixes, and the legal review of location data before real users (ADR-0015) | about 12-15 PRs, about 2-3 weeks |
+| 5 | Production Compose with resource limits, deploy job, VPS and HTTPS (browser location needs https), edge proxy with the real client address, nightly off-server backups, CI that runs only what a change touches, gateway retries, secret scanning, Maven wrapper checksum, dependency audit (npm and Maven), cleaning old refresh tokens, cleaning published outbox rows, a Booking reconciliation check that finds published events Booking has no seats for and repairs them (found on 2026-11-23: an event published before Booking existed was never provisioned), a filter on `GET /bookings` (by event and status) so the web app can find a customer's hold without reading a page of bookings, keeping the "Near me" point out of the edge proxy's access log (the log records the whole request address), load tests, a security review, location, booking and payment paths added to the gateway's protected prefixes, and the legal review of location data before real users (ADR-0015) | about 12-15 PRs, about 2-3 weeks |
 
 ## Decisions taken with this plan
 
