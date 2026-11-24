@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { ApiError, fetchEvent, fetchLayout, type PublishedLayout } from '../api/events';
+import { useSessionState, useSessionStore } from '../auth/SessionContext';
+import { HoldPanel } from '../seatmap/HoldPanel';
+import { useHold } from '../seatmap/useHold';
 import { loadSelection, saveSelection } from '../seatmap/selectionStorage';
 import { PollingSeatAvailability } from '../seatmap/availability';
 import { buildGeometry, type SeatShape } from '../seatmap/geometry';
@@ -117,19 +120,53 @@ function SeatPicker({ eventId, layout }: { eventId: string; layout: PublishedLay
   const { selected, notice } = choice;
   useEffect(() => saveSelection(eventId, [...selected]), [eventId, selected]);
 
+  const session = useSessionState();
+  const store = useSessionStore();
+  const fetcher = useCallback((input: string, init?: RequestInit) => store.authorizedFetch(input, init), [store]);
+  const userId = session.status === 'signedIn' ? session.user.id : null;
+
+  const takenNotice = useCallback(
+    (ids: string[]) =>
+      ids.length === 1
+        ? `${describeSeat(geometry.seatsById.get(ids[0]))} was just taken by somebody else. It was removed from your seats.`
+        : `${ids.length} of your seats were just taken by somebody else. They were removed from your seats.`,
+    [geometry],
+  );
+  const holdCallbacks = useMemo(
+    () => ({
+      // The server refused these seats: they leave the choice, and the person is told.
+      onSeatsTaken: (ids: string[]) =>
+        setChoice((current) => {
+          const lost = ids.filter((id) => current.selected.has(id));
+          if (lost.length === 0) {
+            return current;
+          }
+          return { selected: new Set([...current.selected].filter((id) => !ids.includes(id))), notice: takenNotice(lost) };
+        }),
+      // Held seats are no longer a choice: the hold panel shows them.
+      onHeld: () => setChoice({ selected: new Set(), notice: null }),
+      refreshAvailability: () => source.refresh(),
+    }),
+    [source, takenNotice],
+  );
+  const hold = useHold(eventId, userId, fetcher, selected, holdCallbacks);
+  const heldIds = useMemo(
+    () => new Set(hold.hold ? hold.hold.booking.seats.map((seat) => seat.seatId) : []),
+    [hold.hold],
+  );
+
   // A seat that somebody else took while it was chosen leaves the selection, and the person is told.
   // (Adjusting state while rendering is React's way to derive state from a changed input; no effect is needed.)
   const [seenUnavailable, setSeenUnavailable] = useState(availability.unavailable);
   if (seenUnavailable !== availability.unavailable) {
     setSeenUnavailable(availability.unavailable);
-    const lost = [...selected].filter((id) => availability.unavailable.has(id));
-    if (lost.length > 0) {
+    const gone = [...selected].filter((id) => availability.unavailable.has(id));
+    if (gone.length > 0) {
+      // Seats of the person's own hold are unavailable too, but nobody "took" them.
+      const lost = gone.filter((id) => !heldIds.has(id));
       setChoice({
         selected: new Set([...selected].filter((id) => !availability.unavailable.has(id))),
-        notice:
-          lost.length === 1
-            ? `${describeSeat(geometry.seatsById.get(lost[0]))} was just taken by somebody else. It was removed from your seats.`
-            : `${lost.length} of your seats were just taken by somebody else. They were removed from your seats.`,
+        notice: lost.length > 0 ? takenNotice(lost) : null,
       });
     }
   }
@@ -147,13 +184,15 @@ function SeatPicker({ eventId, layout }: { eventId: string; layout: PublishedLay
       return { selected: new Set(current.selected).add(seat.id), notice: null };
     });
   }, []);
+  // While seats are held the map is only a picture of them.
+  const doNothing = useCallback(() => undefined, []);
 
   // Selected seats in map order, for the summary.
   const chosen = useMemo(
     () => geometry.rows.flatMap((row) => row.seats).filter((seat) => selected.has(seat.id)),
     [geometry, selected],
   );
-
+  const holding = hold.hold !== null;
 
   return (
     <>
@@ -172,19 +211,67 @@ function SeatPicker({ eventId, layout }: { eventId: string; layout: PublishedLay
           {notice}
         </p>
       )}
-      <p className="seat-hint">
-        Select seats with the mouse or touch. With the keyboard: Tab to the map, arrow keys to move, Space to choose.
-      </p>
+      {hold.message && (
+        <p role={hold.message.kind} className="seat-warning">
+          {hold.message.text}
+        </p>
+      )}
+      {!holding && (
+        <p className="seat-hint">
+          Select seats with the mouse or touch. With the keyboard: Tab to the map, arrow keys to move, Space to choose.
+        </p>
+      )}
       <SeatMap
         layout={layout}
         unavailable={availability.unavailable}
-        selected={selected}
+        selected={holding ? heldIds : selected}
         interactive={availability.loaded}
-        onToggle={toggle}
+        onToggle={holding ? doNothing : toggle}
       />
       <SeatLegend />
-      <SelectionSummary seats={chosen} currency={layout.currency} onRemove={toggle} />
+      {hold.hold ? (
+        <HoldPanel hold={hold.hold} busy={hold.busy === 'releasing'} onRelease={() => void hold.release()} onExpired={hold.expire} />
+      ) : (
+        <SelectionSummary
+          seats={chosen}
+          currency={layout.currency}
+          onRemove={toggle}
+          action={
+            <HoldAction
+              signedIn={session.status === 'signedIn'}
+              loading={session.status === 'loading' || hold.checking}
+              busy={hold.busy === 'holding'}
+              count={chosen.length}
+              onHold={() => void hold.place()}
+            />
+          }
+        />
+      )}
     </>
+  );
+}
+
+function HoldAction(props: { signedIn: boolean; loading: boolean; busy: boolean; count: number; onHold: () => void }) {
+  const location = useLocation();
+  if (!props.signedIn && !props.loading) {
+    const state = { from: location.pathname };
+    return (
+      <p>
+        <Link to="/login" state={state}>
+          Sign in
+        </Link>{' '}
+        or{' '}
+        <Link to="/register" state={state}>
+          create an account
+        </Link>{' '}
+        to hold these seats. Your choice is kept.
+      </p>
+    );
+  }
+  return (
+    <button type="button" onClick={props.onHold} disabled={props.loading || props.busy}>
+      {props.busy ? 'Holding…' : `Hold ${props.count === 1 ? '1 seat' : `${props.count} seats`}`}
+    </button>
   );
 }
 

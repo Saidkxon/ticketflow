@@ -290,3 +290,9 @@ fieldset {
   font-size: 0.9rem;
   opacity: 0.8;
 }
+
+/* Holding seats (PR 14). */
+.hold [role='timer'] {
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
