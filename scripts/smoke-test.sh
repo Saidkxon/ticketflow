@@ -2,6 +2,8 @@
 # Checks the running local stack end to end. Start it first:
 #   docker compose -f deploy/compose.yaml --profile app up -d --build --wait
 # Usage: scripts/smoke-test.sh [web-base-url] [gateway-base-url]
+# The hold path near the end needs "docker compose" (it gives a test user the ORGANIZER role) and leaves one published
+# event in 2099 behind; SMOKE_SKIP_HOLD_PATH=1 skips it. It needs a minute between two runs (sign-in rate limit).
 set -u
 
 WEB="${1:-http://localhost:${WEB_PORT:-18090}}"
@@ -89,6 +91,91 @@ hold_body="{\"eventId\":\"$unknown_event\",\"seatIds\":[\"$unknown_event\"]}"
 hold_answer="$(curl -s -w '\n%{http_code}' -X POST -H "Authorization: Bearer $access" -H 'Content-Type: application/json' -H "Idempotency-Key: $unknown_event" -d "$hold_body" "$WEB/api/v1/bookings")"
 check "holds: an event that is not on sale" 404 "$(printf '%s' "$hold_answer" | tail -1)"
 contains "holds: the refusal comes from Booking" '"code":"EVENT_NOT_ON_SALE"' "$hold_answer"
+# The whole hold path (PR 16). A second user is needed (to be refused a held seat) and an organizer is needed (to
+# publish an event with seats). One account does both: a user whose ORGANIZER role is written straight into the
+# Identity database of this test stack, because the first-admin bootstrap needs an Identity restart (ADR-0004). The
+# role is read when a token is made, so the user logs in again afterwards. Set SMOKE_SKIP_HOLD_PATH=1 to skip this
+# part: it needs "docker compose" and leaves one published event ("Smoke test event ...", in 2099) behind.
+# The gateway allows few sign-in calls a minute from one address (GATEWAY_AUTH_LIMIT_PER_MINUTE, 10 by default), so the
+# whole script uses 8 of them: wait a minute before running it again.
+new_uuid() { printf '%04x%04x-%04x-4%03x-a%03x-%04x%04x%04x\n' $RANDOM $RANDOM $RANDOM $((RANDOM % 4096)) $((RANDOM % 4096)) $RANDOM $RANDOM $RANDOM; }
+etag_of() { printf '%s\n' "$1" | grep -i '^etag:' | head -1 | sed 's/^[^:]*: *//'; }
+id_of() { printf '%s' "$1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4; }
+bearer() { printf 'Authorization: Bearer %s' "$1"; }
+json_call() { # token method path [extra curl args...]: the answer with headers, then the body, CR removed
+  tok="$1"; method="$2"; path="$3"; shift 3
+  curl -s -D - -X "$method" -H "$(bearer "$tok")" -H 'Content-Type: application/json' "$@" "$WEB$path" | tr -d '\r'
+}
+hold_call() { # token idempotency-key seat-id... : hold the seats of the smoke event
+  tok="$1"; key="$2"; shift 2
+  ids=""; for seat in "$@"; do ids="${ids:+$ids,}\"$seat\""; done
+  json_call "$tok" POST /api/v1/bookings -H "Idempotency-Key: $key" -d "{\"eventId\":\"$event_id\",\"seatIds\":[$ids]}"
+}
+
+if [ "${SMOKE_SKIP_HOLD_PATH:-0}" = 1 ]; then
+  echo "skip the whole hold path (SMOKE_SKIP_HOLD_PATH=1)"
+else
+  COMPOSE_FILE="${COMPOSE_FILE:-$(dirname "$0")/../deploy/compose.yaml}"
+  org_email="smoke-org-$(date +%s)-$RANDOM@example.com"
+  org_password="smoke test password 1"
+  check "organizer: register" 201 "$(status_of "$(auth register -d "{\"email\":\"$org_email\",\"password\":\"$org_password\",\"displayName\":\"Smoke Organizer\"}")")"
+  org_login="$(auth login -d "{\"email\":\"$org_email\",\"password\":\"$org_password\"}")"
+  check "organizer: login" 200 "$(status_of "$org_login")"
+  org_first_token="$(printf '%s' "$org_login" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)"
+  org_id="$(id_of "$(curl -s -H "$(bearer "$org_first_token")" "$WEB/api/v1/users/me")")"
+  granted="$(docker compose -f "$COMPOSE_FILE" exec -T postgres psql -U identity -d identity -c "insert into user_roles (user_id, role) values ('$org_id', 'ORGANIZER') on conflict do nothing" 2>&1)"
+  contains "organizer: the role is written in the test database" "INSERT 0 1" "$granted"
+  org="$(auth login -d "{\"email\":\"$org_email\",\"password\":\"$org_password\"}" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)"
+
+  created="$(json_call "$org" POST /api/v1/events -d "{\"title\":\"Smoke test event $(date +%s)\",\"startsAt\":\"2099-01-01T18:00:00Z\",\"venueName\":\"Smoke Hall\",\"city\":\"Tashkent\"}")"
+  check "events: an organizer creates a draft" 201 "$(status_of "$created")"
+  event_id="$(id_of "$(printf '%s\n' "$created" | tail -1)")"
+  saved="$(json_call "$org" PUT "/api/v1/events/$event_id/layout" -H "If-Match: $(etag_of "$created")" -d '{"currency":"UZS","priceTiers":[{"name":"Standard","priceMinor":100000}],"sections":[{"name":"Hall","tier":"Standard","rows":1,"seatsPerRow":6}]}')"
+  check "events: the layout is saved" 200 "$(status_of "$saved")"
+  published="$(json_call "$org" POST "/api/v1/events/$event_id/publish" -H "If-Match: $(etag_of "$saved")")"
+  check "events: the event is published" 200 "$(status_of "$published")"
+
+  # Booking gets its seats from the "layout published" message (ADR-0012): wait until it has them.
+  provisioned=no
+  for _ in $(seq 1 30); do
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' "$WEB/api/v1/events/$event_id/availability")" = 200 ]; then provisioned=yes; break; fi
+    sleep 1
+  done
+  check "availability: Booking has the seats after publishing" yes "$provisioned"
+  seats="$(curl -s "$WEB/api/v1/events/$event_id/layout" | grep -o '"id":"[^"]*","number":[0-9]*' | cut -d'"' -f4)"
+  check "layout: six seats" 6 "$(printf '%s\n' "$seats" | grep -c .)"
+  seat1="$(printf '%s\n' "$seats" | sed -n 1p)"; seat2="$(printf '%s\n' "$seats" | sed -n 2p)"; seat3="$(printf '%s\n' "$seats" | sed -n 3p)"
+
+  key="$(new_uuid)"
+  held="$(hold_call "$access" "$key" "$seat1" "$seat2")"
+  check "holds: a customer holds two seats" 201 "$(status_of "$held")"
+  contains "holds: the booking is HELD" '"status":"HELD"' "$held"
+  booking_id="$(id_of "$(printf '%s\n' "$held" | tail -1)")"
+  replay="$(hold_call "$access" "$key" "$seat1" "$seat2")"
+  contains "holds: the same key answers with the same booking" "\"id\":\"$booking_id\"" "$replay"
+  more="$(hold_call "$access" "$(new_uuid)" "$seat3")"
+  check "holds: a second hold of the same event is refused" 409 "$(status_of "$more")"
+  contains "holds: the refusal is ACTIVE_HOLD_EXISTS" '"code":"ACTIVE_HOLD_EXISTS"' "$more"
+  taken="$(hold_call "$org" "$(new_uuid)" "$seat1")"
+  check "holds: another user cannot take a held seat" 409 "$(status_of "$taken")"
+  contains "holds: the refusal is SEATS_UNAVAILABLE" '"code":"SEATS_UNAVAILABLE"' "$taken"
+  contains "holds: the refusal names the seat" "$seat1" "$taken"
+  # The list of unavailable seats is reused for about two seconds (ADR-0011), so wait for it.
+  listed=no
+  for _ in $(seq 1 10); do
+    case "$(curl -s "$WEB/api/v1/events/$event_id/availability")" in *"$seat1"*) listed=yes; break ;; esac
+    sleep 1
+  done
+  check "availability: a held seat is listed as unavailable" yes "$listed"
+  contains "bookings: the hold is in the list of its customer" "$booking_id" "$(curl -s -H "$(bearer "$access")" "$WEB/api/v1/bookings")"
+  check "release: another user cannot release it" 404 "$(status_of "$(json_call "$org" POST "/api/v1/bookings/$booking_id/release")")"
+  released="$(json_call "$access" POST "/api/v1/bookings/$booking_id/release")"
+  check "release: the customer releases the hold" 200 "$(status_of "$released")"
+  contains "release: the booking is CANCELLED" '"status":"CANCELLED"' "$released"
+  check "release: repeating it is fine" 200 "$(status_of "$(json_call "$access" POST "/api/v1/bookings/$booking_id/release")")"
+  check "holds: a released seat can be held by another user" 201 "$(status_of "$(hold_call "$org" "$(new_uuid)" "$seat1")")"
+fi
+
 first="$(cookie_of "$login")"
 refreshed="$(auth refresh -H "Cookie: refresh_token=$first")"
 check "auth: refresh" 200 "$(status_of "$refreshed")"
