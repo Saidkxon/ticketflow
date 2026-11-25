@@ -17,7 +17,7 @@
 
 | # | Pull request | Delivers |
 |---|---|---|
-| 16 | Test organizer and the full hold path in the smoke test | The smoke script creates an organizer without a human: it registers a user and gives that user the `ORGANIZER` role directly in the Identity database of the test stack (the first-admin bootstrap needs an Identity restart and is for operators, ADR-0004). With that organizer the script creates an event with a small layout, publishes it, waits until Booking has the seats, holds seats, releases them, and checks that a second user cannot take held seats. Also the load check promised in Phase 4b: a script that runs 50 simultaneous users against holds and 50 pollers against availability and prints p95 times (targets: holds under 500 ms, availability under 200 ms). Both run on your machine and in CI where it fits |
+| 16 | Test organizer and the full hold path in the smoke test (in review) | The smoke script creates an organizer without a human: it registers a user and gives that user the `ORGANIZER` role directly in the Identity database of the test stack (the first-admin bootstrap needs an Identity restart and is for operators, ADR-0004). With that organizer the script creates an event with a small layout, publishes it, waits until Booking has the seats, holds seats, releases them, and checks that a second user cannot take held seats. Also the load check promised in Phase 4b: a script that runs 50 simultaneous users against holds and 50 pollers against availability and prints p95 times (targets: holds under 500 ms, availability under 200 ms). The smoke part runs in CI; the load check runs on your machine and has a runbook, `docs/runbooks/load-check.md` |
 
 ## Part 1: Payment service (4 pull requests)
 
