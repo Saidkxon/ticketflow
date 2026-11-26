@@ -1,0 +1,199 @@
+openapi: 3.1.0
+info:
+  title: TicketFlow Payment service, internal API
+  version: 0.1.0
+  description: |
+    Endpoints that only other services call (ADR-0002, ADR-0004 Part D, ADR-0006). They live under `/internal/v1`, are
+    **not routed by the gateway**, and need a **service token** issued by Identity with the audience `payment-service`
+    and the scope named on each operation (`identity.internal.openapi.yaml`). A user's token is never accepted.
+
+    Errors are `application/problem+json` with a stable `code` and the `correlationId` (ADR-0009).
+
+servers:
+  - url: http://payment:18084
+    description: Inside the Docker network only
+
+tags:
+  - name: payment-attempts
+    description: Attempts to charge for a booking
+
+paths:
+  /internal/v1/payment-attempts:
+    post:
+      tags: [payment-attempts]
+      operationId: createPaymentAttempt
+      summary: Create a payment attempt (idempotent)
+      description: |
+        Needs the scope `payment.attempt.create`.
+
+        Booking calls this when the customer pays. The idempotency key is the booking and the attempt number
+        (`<bookingId>:<attemptNumber>`, ADR-0009 part C). The first request creates the payment in the state `PENDING`.
+        The same request repeated (a retry after a timeout, a second click) returns the **same payment** and creates and
+        charges nothing again (FR-11); the answer is 202 both times. The same key with another amount or currency is
+        refused with 422, so a key can never be used to change what was asked.
+
+        The payment is not decided when this call returns. Its result arrives later as an event (ADR-0002).
+      security: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F-]{36}:[0-9]{1,2}$'
+          description: The booking ID, a colon and the attempt number from 1 to 99
+          example: 3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50:1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentAttempt'
+      responses:
+        '202':
+          description: The payment attempt, new or the one that already existed for this key
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Where to read the payment
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: A field is missing or malformed, the booking in the body differs from the key, or the key is missing (`IDEMPOTENCY_KEY_REQUIRED`) or malformed (`IDEMPOTENCY_KEY_INVALID`, `INVALID_REQUEST`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid service token (code `UNAUTHENTICATED`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: A valid token without the scope `payment.attempt.create` (code `FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The key was already used with another amount or currency (code `IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /internal/v1/payment-attempts/{paymentId}:
+    get:
+      tags: [payment-attempts]
+      operationId: getPaymentAttempt
+      summary: Read a payment attempt
+      description: Needs the scope `payment.attempt.read`.
+      security: []
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The payment attempt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '401':
+          description: No valid service token (code `UNAUTHENTICATED`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: A valid token without the scope `payment.attempt.read` (code `FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No such payment (code `NOT_FOUND`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+components:
+  schemas:
+    CreatePaymentAttempt:
+      type: object
+      additionalProperties: false
+      required: [bookingId, amountMinor, currency]
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+          description: Must be the booking ID in the Idempotency-Key
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+          description: Amount in the smallest unit of the currency
+          example: 150000
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          example: UZS
+    Payment:
+      type: object
+      required: [paymentId, bookingId, attemptNumber, amountMinor, currency, status, createdAt, updatedAt]
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        bookingId:
+          type: string
+          format: uuid
+        attemptNumber:
+          type: integer
+          minimum: 1
+          maximum: 99
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, SUCCEEDED, FAILED]
+          description: PENDING until the provider has answered (a later pull request sets the final states)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+        correlationId:
+          type: string

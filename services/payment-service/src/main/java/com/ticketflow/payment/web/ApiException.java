@@ -48,6 +48,25 @@ public class ApiException extends RuntimeException {
                 "Authentication is required.");
     }
 
+    public static ApiException idempotencyKeyRequired() {
+        return new ApiException(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency key required",
+                "Send an Idempotency-Key header: the booking ID, a colon and the attempt number.");
+    }
+
+    public static ApiException idempotencyKeyInvalid() {
+        return new ApiException(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_INVALID", "Idempotency key invalid",
+                "The Idempotency-Key must be the booking ID, a colon and the attempt number, for example <uuid>:1.");
+    }
+
+    public static ApiException idempotencyKeyReused() {
+        return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "IDEMPOTENCY_KEY_REUSED", "Idempotency key reused",
+                "This Idempotency-Key was already used for a different request.");
+    }
+
+    public static ApiException paymentNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Not found", "The payment was not found.");
+    }
+
     /** A valid service token that does not grant what this endpoint needs. */
     public static ApiException insufficientScope() {
         return new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Forbidden",
