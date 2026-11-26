@@ -17,7 +17,7 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 /**
  * Security rules of the Identity service (ADR-0004). Everything is closed unless listed here.
- * Public: registration, login, refresh, logout and the public keys. Everything else needs a valid access token.
+ * Public: registration, login, refresh, logout, the public keys and the service token endpoint (internal only). Everything else needs a valid access token.
  * Refresh and logout are open to the security chain because they stand on the refresh cookie, and are guarded separately (BrowserRequestGuard).
  */
 @Configuration(proxyBeanMethods = false)
@@ -60,6 +60,9 @@ class SecurityConfig {
                                 "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
                         // Public keys; the gateway does not route this path (ADR-0004).
                         .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
+                        // Service tokens (ADR-0004, Part D): the secret in the body is the credential. The gateway does not
+                        // route /internal, and every other path under it stays closed by the last rule.
+                        .requestMatchers(HttpMethod.POST, "/internal/v1/service-tokens").permitAll()
                         // Admin only, decided here and again by nothing else: a missing role is a plain 403.
                         // Everything under /users except /me is Admin-only, so a future path is closed by default.
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/me").authenticated()

@@ -1,0 +1,131 @@
+openapi: 3.1.0
+info:
+  title: TicketFlow Identity service, internal API
+  version: 0.1.0
+  description: |
+    Endpoints that only other services call (ADR-0002, ADR-0004 Part D). They live under `/internal/v1`, are **not routed
+    by the gateway**, and are reachable only inside the container network. The public API is in `identity.openapi.yaml`.
+
+    Errors are `application/problem+json` with a stable `code` and the `correlationId` (ADR-0009).
+
+servers:
+  - url: http://identity:18082
+    description: Inside the Docker network only
+
+tags:
+  - name: service-tokens
+    description: Short-lived tokens that one service uses to call another
+
+paths:
+  /internal/v1/service-tokens:
+    post:
+      tags: [service-tokens]
+      operationId: issueServiceToken
+      security: []
+      summary: Get a service token (client-credentials style)
+      description: |
+        The calling service proves who it is with its secret and asks for a token for **one target service** and one or
+        more scopes. The configuration of Identity lists, for each calling service, the targets and scopes it may ask
+        for; asking for anything else is refused as a whole (nothing is silently left out).
+
+        The token is an RS256 JWT signed with the same keys as user tokens (published at `/.well-known/jwks.json`):
+        issuer `ticketflow-identity`, audience the target service, subject the calling service, `scope` (space separated),
+        `iat`, `exp` (5 minutes by default) and `jti`. It has **no `roles` claim**: a user token is never accepted on an
+        internal endpoint and a service token never opens a public one.
+
+        The response is never cached. A service asks again when its token is about to expire.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceTokenRequest'
+      responses:
+        '200':
+          description: The token
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: A field is missing or malformed, or an unknown field was sent (code `INVALID_REQUEST`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unknown service or wrong secret, the same answer for both (code `INVALID_CLIENT`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The service is known but may not ask for that target or those scopes (code `SCOPE_NOT_ALLOWED`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+components:
+  schemas:
+    ServiceTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [clientId, clientSecret, audience, scopes]
+      properties:
+        clientId:
+          type: string
+          pattern: '^[a-z][a-z0-9-]{0,63}$'
+          description: The calling service
+          example: booking-service
+        clientSecret:
+          type: string
+          maxLength: 200
+          description: The secret of the calling service, from its environment
+        audience:
+          type: string
+          pattern: '^[a-z][a-z0-9-]{0,63}$'
+          description: The service the token is for
+          example: payment-service
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: string
+            pattern: '^[a-z][a-z0-9.-]{0,63}$'
+          example: [payment.attempt.create]
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          description: Seconds until the token expires
+          example: 300
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+        correlationId:
+          type: string

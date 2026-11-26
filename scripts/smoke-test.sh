@@ -46,6 +46,20 @@ else
   inside_payment() { # extra curl args...: call Payment from inside its own container, answer body and status code
     docker compose -f "$payment_compose" exec -T payment curl -s -w '\n%{http_code}' "$@" http://localhost:18084/internal/v1/anything 2>&1
   }
+  # Service tokens (PR 17b, ADR-0004 Part D): Booking's secret is in the Identity container. Identity issues a token for
+  # Payment, and Payment accepts it: a valid token on an unknown internal path is Payment's own 404, not a 401 or 403.
+  ask_identity() { # scopes as JSON, e.g. '["payment.attempt.create"]': the answer body and status code
+    # The secret is read inside the container from its own environment, so it never appears in this script or its output.
+    # The scopes arrive as the first argument of the inner shell ($0).
+    docker compose -f "$payment_compose" exec -T identity sh -c 'curl -s -w "\n%{http_code}" -H "Content-Type: application/json" -d "{\"clientId\":\"booking-service\",\"clientSecret\":\"$BOOKING_SERVICE_CLIENT_SECRET\",\"audience\":\"payment-service\",\"scopes\":$0}" http://localhost:18082/internal/v1/service-tokens' "$1" 2>&1
+  }
+  issued="$(ask_identity '["payment.attempt.create"]')"
+  check "service token: Identity issues one to Booking" 200 "$(printf '%s' "$issued" | tail -1)"
+  service_token="$(printf '%s' "$issued" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)"
+  accepted="$(inside_payment -H "Authorization: Bearer $service_token")"
+  check "service token: Payment accepts a token from Identity" 404 "$(printf '%s' "$accepted" | tail -1)"
+  contains "service token: the 404 is Payment's own" '"code":"NOT_FOUND"' "$accepted"
+  check "service token: a scope Booking may not have is refused" 403 "$(ask_identity '["payment.refund.create"]' | tail -1)"
   no_token="$(inside_payment)"
   check "payment: an internal path without a token is refused" 401 "$(printf '%s' "$no_token" | tail -1)"
   contains "payment: the refusal has the stable code" '"code":"UNAUTHENTICATED"' "$no_token"

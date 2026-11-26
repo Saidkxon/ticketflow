@@ -9,6 +9,8 @@ import com.ticketflow.identity.location.LocationNotAvailableException;
 import com.ticketflow.identity.sessions.InvalidRefreshTokenException;
 import com.ticketflow.identity.sessions.RefreshCookies;
 import com.ticketflow.identity.sessions.RequestOriginNotAllowedException;
+import com.ticketflow.identity.tokens.InvalidClientException;
+import com.ticketflow.identity.tokens.ScopeNotAllowedException;
 import com.ticketflow.identity.users.TokenUserNotFoundException;
 import com.ticketflow.identity.users.UserNotFoundException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -72,6 +74,25 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Invalid credentials");
         enrich(problem, "INVALID_CREDENTIALS");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+    }
+
+    @ExceptionHandler(InvalidClientException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidClient(InvalidClientException ex) {
+        // The same answer for a wrong secret and for an unknown service (ADR-0004, Part D).
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, "The service name or the secret is not correct.");
+        problem.setTitle("Invalid client");
+        enrich(problem, "INVALID_CLIENT");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+    }
+
+    @ExceptionHandler(ScopeNotAllowedException.class)
+    public ResponseEntity<ProblemDetail> handleScopeNotAllowed(ScopeNotAllowedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN, "This service may not ask for that target or those scopes.");
+        problem.setTitle("Scope not allowed");
+        enrich(problem, "SCOPE_NOT_ALLOWED");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 
     @ExceptionHandler(TooManyAttemptsException.class)
