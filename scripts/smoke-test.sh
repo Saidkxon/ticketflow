@@ -60,6 +60,26 @@ else
   check "service token: Payment accepts a token from Identity" 404 "$(printf '%s' "$accepted" | tail -1)"
   contains "service token: the 404 is Payment's own" '"code":"NOT_FOUND"' "$accepted"
   check "service token: a scope Booking may not have is refused" 403 "$(ask_identity '["payment.refund.create"]' | tail -1)"
+  # Payment attempts (PR 18): create one with the token from Identity, repeat the request, read it back. The key is the
+  # booking ID and the attempt number; the repeat must give the same payment, not a second one.
+  payment_request() { # path, then curl arguments: Payment's answer body and status code, called from inside its container
+    path="$1"; shift
+    docker compose -f "$payment_compose" exec -T payment curl -s -w '\n%{http_code}' "$@" "http://localhost:18084$path" 2>&1
+  }
+  attempts_issued="$(ask_identity '["payment.attempt.create","payment.attempt.read"]')"
+  attempts_token="$(printf '%s' "$attempts_issued" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)"
+  attempt_booking="$(printf '%04x%04x-%04x-4%03x-a%03x-%04x%04x%04x' $RANDOM $RANDOM $RANDOM $((RANDOM % 4096)) $((RANDOM % 4096)) $RANDOM $RANDOM $RANDOM)"
+  attempt_body="{\"bookingId\":\"$attempt_booking\",\"amountMinor\":150000,\"currency\":\"UZS\"}"
+  attempt_one="$(payment_request /internal/v1/payment-attempts -X POST -H "Authorization: Bearer $attempts_token" -H 'Content-Type: application/json' -H "Idempotency-Key: $attempt_booking:1" -d "$attempt_body")"
+  check "payment attempts: a new attempt is accepted" 202 "$(printf '%s' "$attempt_one" | tail -1)"
+  contains "payment attempts: it is PENDING" '"status":"PENDING"' "$attempt_one"
+  attempt_id="$(printf '%s' "$attempt_one" | grep -o '"paymentId":"[^"]*"' | head -1 | cut -d'"' -f4)"
+  attempt_two="$(payment_request /internal/v1/payment-attempts -X POST -H "Authorization: Bearer $attempts_token" -H 'Content-Type: application/json' -H "Idempotency-Key: $attempt_booking:1" -d "$attempt_body")"
+  contains "payment attempts: the same request gives the same payment" "\"paymentId\":\"$attempt_id\"" "$attempt_two"
+  changed="$(payment_request /internal/v1/payment-attempts -X POST -H "Authorization: Bearer $attempts_token" -H 'Content-Type: application/json' -H "Idempotency-Key: $attempt_booking:1" -d "{\"bookingId\":\"$attempt_booking\",\"amountMinor\":1,\"currency\":\"UZS\"}")"
+  check "payment attempts: the same key with another amount is refused" 422 "$(printf '%s' "$changed" | tail -1)"
+  attempt_read="$(payment_request "/internal/v1/payment-attempts/$attempt_id" -H "Authorization: Bearer $attempts_token")"
+  check "payment attempts: the attempt can be read" 200 "$(printf '%s' "$attempt_read" | tail -1)"
   no_token="$(inside_payment)"
   check "payment: an internal path without a token is refused" 401 "$(printf '%s' "$no_token" | tail -1)"
   contains "payment: the refusal has the stable code" '"code":"UNAUTHENTICATED"' "$no_token"
