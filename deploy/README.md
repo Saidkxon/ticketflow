@@ -38,6 +38,14 @@ Open http://localhost:18090 in the browser (set `WEB_PORT` in `deploy/.env` to c
 
 This is the local setup. Which component serves the app in production is decided at the deployment gate (ADR-0013, G10).
 
+## Service tokens (Booking to Payment)
+
+When one service calls another, it first asks Identity for a short-lived token with its own secret (ADR-0004, Part D). Booking's secret is `BOOKING_SERVICE_CLIENT_SECRET` in `deploy/.env`; the first-time command above fills it with a random value. If your `deploy/.env` is older than this setting, add it once (compose refuses to start without it):
+
+    echo "BOOKING_SERVICE_CLIENT_SECRET=$(openssl rand -hex 32)" >> deploy/.env
+
+Identity reads the list of services that may ask, and what each may ask for, from `ticketflow.identity.service-clients` in its `application.yaml`. A service whose secret is empty gets no tokens. The endpoint is `POST /internal/v1/service-tokens` (`contracts/identity.internal.openapi.yaml`); the gateway does not route it.
+
 ## The message broker (RabbitMQ)
 
 The broker (ADR-0003) starts together with the applications (`--profile app`), or alone with `docker compose -f deploy/compose.yaml --profile broker up -d rabbitmq` when you run services from the IDE. Add its password to `deploy/.env` once:

@@ -19,6 +19,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 public abstract class AbstractPostgresIntegrationTest {
 
     protected static final String SIGNING_KEY_ID = "test-1";
+    /** The secret of the booking-service client in tests (ADR-0004, Part D). */
+    protected static final String TEST_CLIENT_SECRET = "test-secret-of-the-booking-service-client";
 
     private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18.6");
     private static final Path KEY_DIRECTORY;
@@ -40,5 +42,8 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("ticketflow.identity.jwt.key-directory", KEY_DIRECTORY::toString);
         registry.add("ticketflow.identity.jwt.signing-key-id", () -> SIGNING_KEY_ID);
+        registry.add("ticketflow.identity.service-clients.clients.booking-service.secret", () -> TEST_CLIENT_SECRET);
+        registry.add("ticketflow.identity.service-clients.clients.booking-service.allowed.payment-service",
+                () -> "payment.attempt.create,payment.attempt.read");
     }
 }

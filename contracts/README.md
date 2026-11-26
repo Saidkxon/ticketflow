@@ -7,6 +7,7 @@ The OpenAPI files here are the **source of truth** for every public API (ADR-000
 | [catalog.openapi.yaml](catalog.openapi.yaml) | Event Catalog | Public event list and event layout; organizer events, layout and publish |
 | [booking.openapi.yaml](booking.openapi.yaml) | Booking | Public seat availability of an event and holding seats (reading and releasing bookings come later) |
 | [identity.openapi.yaml](identity.openapi.yaml) | Identity | Proposed: register, login, refresh, logout, current user, roles, public keys (no code yet) |
+| [identity.internal.openapi.yaml](identity.internal.openapi.yaml) | Identity (internal) | Service tokens for service-to-service calls (not routed by the gateway) |
 
 Rules (ADR-0009):
 

@@ -160,6 +160,9 @@ services:
       # Email of the user who becomes the first Admin at startup (see deploy/README.md). Empty: nobody.
       IDENTITY_BOOTSTRAP_ADMIN_EMAIL: ${IDENTITY_BOOTSTRAP_ADMIN_EMAIL:-}
       IDENTITY_ALLOWED_ORIGINS: ${IDENTITY_ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-18090}}
+      # The secret that Booking uses to ask Identity for service tokens (ADR-0004, Part D). Booking gets the same value
+      # when it starts calling Payment. Without it Booking cannot get a token, so the stack refuses to start.
+      BOOKING_SERVICE_CLIENT_SECRET: ${BOOKING_SERVICE_CLIENT_SECRET:?set BOOKING_SERVICE_CLIENT_SECRET in deploy/.env}
     volumes:
       - ./keys:/run/keys:ro
     depends_on:

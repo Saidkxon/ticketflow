@@ -29,6 +29,15 @@ ticketflow:
     jwt:
       key-directory: ${IDENTITY_JWT_KEY_DIRECTORY:}
       signing-key-id: ${IDENTITY_JWT_SIGNING_KEY_ID:}
+    # Service tokens (ADR-0004, Part D): which services may ask Identity for a token, for which target and scopes.
+    # The secret comes from the environment; empty means that service cannot get tokens (see deploy/README.md).
+    service-clients:
+      token-ttl: 5m
+      clients:
+        booking-service:
+          secret: ${BOOKING_SERVICE_CLIENT_SECRET:}
+          allowed:
+            payment-service: payment.attempt.create,payment.attempt.read
     # Refresh tokens and their cookie (ADR-0004). allowed-origins are the web app origins that may
     # call refresh and logout (comma separated). The cookie is Secure; browsers still accept it on localhost.
     # The first Admin (ADR-0004): the user with this email gets the ADMIN role at startup. See deploy/README.md.
