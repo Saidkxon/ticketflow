@@ -5,7 +5,7 @@
 | **Status** | Draft, 2026-11-24. Waiting for the instructor's approval and for answers to the questions below |
 | **Goal** | A customer can pay for held seats with a simulated provider and get a confirmed booking, see their tickets, cancel and get a refund, and is notified by email. Every failure path ends in a clear final state with money returned when it should be (ADR-0006) |
 | **Out of scope** | A real payment provider, partial refunds, several payment methods, QR codes on tickets, an organizer sales dashboard (FR-17 is planned after the UX pass), real outgoing email (Phase 5) |
-| **Estimate** | 15 pull requests (numbers 16 to 30 continue the numbering of Phase 4b). About 3 weeks at 10 to 15 hours a week. This is the riskiest phase so far: money, concurrency and three services in one flow |
+| **Estimate** | 16 pull requests (numbers 16 to 30 and 17b continue the numbering of Phase 4b). About 3 weeks at 10 to 15 hours a week. This is the riskiest phase so far: money, concurrency and three services in one flow |
 
 ## What this phase builds on
 
@@ -19,11 +19,12 @@
 |---|---|---|
 | 16 | Test organizer and the full hold path in the smoke test (in review) | The smoke script creates an organizer without a human: it registers a user and gives that user the `ORGANIZER` role directly in the Identity database of the test stack (the first-admin bootstrap needs an Identity restart and is for operators, ADR-0004). With that organizer the script creates an event with a small layout, publishes it, waits until Booking has the seats, holds seats, releases them, and checks that a second user cannot take held seats. Also the load check promised in Phase 4b: a script that runs 50 simultaneous users against holds and 50 pollers against availability and prints p95 times (targets: holds under 500 ms, availability under 200 ms). The smoke part runs in CI; the load check runs on your machine and has a runbook, `docs/runbooks/load-check.md` |
 
-## Part 1: Payment service (4 pull requests)
+## Part 1: Payment service (5 pull requests)
 
 | # | Pull request | Delivers |
 |---|---|---|
-| 17 | Payment skeleton | New service: Flyway, token check, health, CI job, Compose service and database, outbox relay copy (ADR-0001 rule R2). Reachable only inside the Docker network; the gateway does not route to it (ADR-0002) |
+| 17 | Payment skeleton (in review) | New service: Flyway, health, CI, Compose service and database, outbox relay copy (ADR-0001 rule R2). Reachable only inside the Docker network; the gateway does not route to it (ADR-0002). Everything under `/internal/v1` needs a **service token** (ADR-0004, Part D): Payment checks it with its own verifier (RS256, issuer Identity, audience `payment-service`, caller in `sub`, permissions in `scope`, a token with `roles` is refused). The check is tested with locally made keys and tokens, because Identity cannot issue service tokens yet |
+| 17b | Identity issues service tokens | ADR-0004, Part D was never built, because no internal call existed. Identity gets a small client-credentials endpoint that is not routed by the gateway: a registered service (`booking-service`, with a secret from the environment) asks for a token for one target service and scopes it is allowed, and gets a token that lives a few minutes. Registered services and their allowed scopes are configuration, not database rows. Tests: wrong secret, a scope the caller may not have, a target that does not exist, a token that Payment's verifier accepts (shared test fixture of the contract) |
 | 18 | Payment attempts | The create-attempt call from Booking with its idempotency key (booking ID plus attempt number): the same key returns the same payment and never charges twice (FR-11, test obligation 7). Payment states `PENDING`, `SUCCEEDED`, `FAILED`. Amount and currency come from the call |
 | 19 | Simulated provider | The provider the MVP uses, behind an interface so a real one can replace it. The outcome is chosen by the test card number the customer types, like the test cards of real providers: one number succeeds, one is declined, one times out and then succeeds late, one sends the result twice. A status lookup with the same idempotency key, so a timeout is never reported as a failure before the provider confirms that no charge happened (R5). `PaymentSucceeded` and `PaymentFailed` through the outbox, schemas in `contracts/` |
 | 20 | Refunds in Payment | `RefundRequested` consumer, refund through the provider interface, `REFUND_PENDING` and `REFUNDED`, `RefundSucceeded` event. Idempotent: a redelivered request refunds once (test obligation 8) |

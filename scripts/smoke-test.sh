@@ -35,6 +35,22 @@ id=3f2b8a52-6c1e-4d7a-9b0e-5a1c2d3e4f50
 contains "web: correlation ID comes back" "x-correlation-id: $id" "$(curl -s -D - -o /dev/null -H "X-Correlation-ID: $id" "$WEB/api/v1/events" | tr 'A-Z' 'a-z')"
 check "health is not on the application port" 404 "$(curl -s -o /dev/null -w '%{http_code}' "$GATEWAY/actuator/health")"
 
+# Payment (PR 17) is internal: the gateway has no route to it (ADR-0002, ADR-0013), and inside the Docker network
+# everything under /internal/v1 needs a service token (ADR-0004, Part D). The second part runs a command inside the
+# Payment container, so it needs "docker compose" (SMOKE_SKIP_HOLD_PATH=1 skips it, like the hold path).
+check "payment: the gateway has no route to the internal API" 404 "$(curl -s -o /dev/null -w '%{http_code}' "$GATEWAY/internal/v1/payment-attempts")"
+if [ "${SMOKE_SKIP_HOLD_PATH:-0}" = 1 ]; then
+  echo "skip the Payment checks inside the stack (SMOKE_SKIP_HOLD_PATH=1)"
+else
+  payment_compose="${COMPOSE_FILE:-$(dirname "$0")/../deploy/compose.yaml}"
+  inside_payment() { # extra curl args...: call Payment from inside its own container, answer body and status code
+    docker compose -f "$payment_compose" exec -T payment curl -s -w '\n%{http_code}' "$@" http://localhost:18084/internal/v1/anything 2>&1
+  }
+  no_token="$(inside_payment)"
+  check "payment: an internal path without a token is refused" 401 "$(printf '%s' "$no_token" | tail -1)"
+  contains "payment: the refusal has the stable code" '"code":"UNAUTHENTICATED"' "$no_token"
+fi
+
 # Sign-in through the web origin (ADR-0004, ADR-0013): register, log in, refresh, log out.
 # The cookie is sent by hand, because curl does not send a Secure cookie over plain http.
 ORIGIN="$WEB"
@@ -57,6 +73,11 @@ contains "auth: login cookie is SameSite=Strict" 'samesite=strict' "$cookie_line
 contains "auth: login cookie is HttpOnly" 'httponly' "$cookie_line"
 contains "auth: login returns an access token" '"accessToken"' "$login"
 access="$(printf '%s' "$login" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)"
+if [ "${SMOKE_SKIP_HOLD_PATH:-0}" != 1 ]; then
+  # A real access token of a user (audience of the public API) must not open an internal path (ADR-0004, Part D).
+  user_token_answer="$(inside_payment -H "Authorization: Bearer $access")"
+  check "payment: a user's access token is refused on an internal path" 401 "$(printf '%s' "$user_token_answer" | tail -1)"
+fi
 check "auth: users/me without a token is refused" 401 "$(curl -s -o /dev/null -w '%{http_code}' "$WEB/api/v1/users/me")"
 me="$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $access" "$WEB/api/v1/users/me")"
 check "auth: users/me with the token" 200 "$(printf '%s' "$me" | tail -1)"

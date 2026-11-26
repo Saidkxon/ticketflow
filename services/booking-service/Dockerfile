@@ -11,6 +11,7 @@ COPY services/catalog-service/pom.xml services/catalog-service/pom.xml
 COPY services/booking-service/pom.xml services/booking-service/pom.xml
 COPY services/api-gateway/pom.xml services/api-gateway/pom.xml
 COPY services/identity-service/pom.xml services/identity-service/pom.xml
+COPY services/payment-service/pom.xml services/payment-service/pom.xml
 COPY services/booking-service/src services/booking-service/src
 # Tests run in CI, not in the image build.
 RUN --mount=type=cache,target=/root/.m2 \

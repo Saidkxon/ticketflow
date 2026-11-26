@@ -113,6 +113,35 @@ services:
       retries: 12
       start_period: 30s
 
+  payment:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: services/payment-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      PAYMENT_DB_URL: jdbc:postgresql://postgres:5432/payment
+      PAYMENT_DB_USER: payment
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?set PAYMENT_DB_PASSWORD in deploy/.env}
+      # Payment checks service tokens itself and fetches Identity's public keys on first use (ADR-0004, Part D).
+      IDENTITY_URI: http://identity:18082
+      # The outbox relay publishes Payment's events to the broker. Payment does not wait for the broker to start:
+      # events stay in the outbox until it is reachable (ADR-0003, rule 1).
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ticketflow
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in deploy/.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No published ports, and the gateway has no route to it: only other services reach Payment (ADR-0002, ADR-0013).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:19084/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   identity:
     profiles: ["app"]
     build:

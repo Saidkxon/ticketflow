@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: payment-service
+  # Each service owns its own database and role (ADR-0005). The password has no default,
+  # so no secret is stored in the repository (NFR-7). If it is missing, Spring keeps the literal
+  # placeholder text and the database rejects the login at startup.
+  datasource:
+    url: ${PAYMENT_DB_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/payment}
+    username: ${PAYMENT_DB_USER:payment}
+    password: ${PAYMENT_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 3000
+
+  # The message broker (ADR-0003). The password has no default, like the database password (NFR-7). Publisher confirms
+  # and "mandatory" let Payment know that the broker took a message it publishes.
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:15673}
+    username: ${RABBITMQ_USER:ticketflow}
+    password: ${RABBITMQ_PASSWORD}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+
+  # A request body with a field we do not know is rejected.
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+server:
+  port: 18084
+
+# Health endpoints live on their own port, which the gateway never routes (ADR-0008, ADR-0013).
+# Readiness depends on this service's own database only (ADR-0008). The broker is deliberately not part of it:
+# when it is down, events stay in the outbox until it is back (NFR-3).
+management:
+  server:
+    port: 19084
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+  health:
+    rabbit:
+      enabled: false
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
+
+ticketflow:
+  payment:
+    # Payment's own outbox relay publishes the events Payment writes (ADR-0003). Other defaults: OutboxProperties.
+    outbox:
+      interval: PT1S
+    # Service tokens (ADR-0004, Part D). Identity's public keys are fetched on first use, inside the container
+    # network only, so Payment starts even when Identity is not up yet.
+    jwt:
+      jwks-uri: ${IDENTITY_URI:http://localhost:18082}/.well-known/jwks.json
