@@ -41,5 +41,6 @@
     <module>services/api-gateway</module>
     <module>services/identity-service</module>
     <module>services/booking-service</module>
+    <module>services/payment-service</module>
   </modules>
 </project>
