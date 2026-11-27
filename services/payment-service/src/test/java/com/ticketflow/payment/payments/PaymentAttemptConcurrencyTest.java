@@ -44,7 +44,7 @@ class PaymentAttemptConcurrencyTest extends AbstractPostgresIntegrationTest {
                 Callable<UUID> call = () -> {
                     ready.countDown();
                     go.await();
-                    return service.create(booking, 1, 99_000, "UZS").paymentId();
+                    return service.create(booking, 1, 99_000, "UZS", null).paymentId();
                 };
                 results.add(pool.submit(call));
             }

@@ -29,10 +29,16 @@ paths:
         Booking calls this when the customer pays. The idempotency key is the booking and the attempt number
         (`<bookingId>:<attemptNumber>`, ADR-0009 part C). The first request creates the payment in the state `PENDING`.
         The same request repeated (a retry after a timeout, a second click) returns the **same payment** and creates and
-        charges nothing again (FR-11); the answer is 202 both times. The same key with another amount or currency is
-        refused with 422, so a key can never be used to change what was asked.
+        charges nothing again (FR-11); the answer is 202 both times. The same key with another amount, currency or test
+        card is refused with 422, so a key can never be used to change what was asked.
 
-        The payment is not decided when this call returns. Its result arrives later as an event (ADR-0002).
+        The payment is not decided when this call returns. Its result arrives later as the event `PaymentSucceeded` or
+        `PaymentFailed` (`events/payment-succeeded.v1.schema.json`, `events/payment-failed.v1.schema.json`), and the
+        payment can be read with `GET` meanwhile (ADR-0002). A timeout of the provider is not a failure: the payment
+        stays `PENDING` until the provider confirms what happened (ADR-0006, rule R5).
+
+        Payment uses a **simulated provider**: the test card in `testCard` decides the result (see the schema). Only the
+        scenario and the last four digits are kept; the number is never stored, logged or returned.
       security: []
       parameters:
         - name: Idempotency-Key
@@ -84,7 +90,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '422':
-          description: The key was already used with another amount or currency (code `IDEMPOTENCY_KEY_REUSED`)
+          description: The key was already used with another amount, currency or test card (code `IDEMPOTENCY_KEY_REUSED`)
           content:
             application/problem+json:
               schema:
@@ -152,6 +158,22 @@ components:
           type: string
           pattern: '^[A-Z]{3}$'
           example: UZS
+        testCard:
+          type: string
+          pattern: '^[0-9]{12,19}$'
+          description: |
+            A test card number for the simulated provider; it decides how the payment ends. A real provider would take
+            a token here, never a card number.
+
+            | Number | What happens |
+            |---|---|
+            | `4242424242424242` | The charge succeeds at once |
+            | `4000000000000002` | The provider declines it (`card_declined`) |
+            | `4000000000000259` | The provider times out, then the charge turns out to have succeeded minutes later |
+            | `4000000000000077` | The charge succeeds and the provider reports it twice; Payment sends one event |
+            | any other number | Declined (`card_declined`) |
+            | missing | Declined (`no_payment_method`) |
+          example: '4242424242424242'
     Payment:
       type: object
       required: [paymentId, bookingId, attemptNumber, amountMinor, currency, status, createdAt, updatedAt]
@@ -174,7 +196,11 @@ components:
         status:
           type: string
           enum: [PENDING, SUCCEEDED, FAILED]
-          description: PENDING until the provider has answered (a later pull request sets the final states)
+          description: PENDING until the provider has answered, or confirmed that it did not charge. SUCCEEDED and FAILED are final.
+        failureReason:
+          type: [string, 'null']
+          enum: [card_declined, no_payment_method, provider_no_charge, null]
+          description: Why the payment failed; null unless the status is FAILED
         createdAt:
           type: string
           format: date-time

@@ -45,6 +45,8 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
         // The outbox relay does not run by itself in tests: a test that needs it calls it.
         registry.add("ticketflow.payment.outbox.schedule-enabled", () -> "false");
+        // The payment processor does not run by itself either: a test that needs it calls it.
+        registry.add("ticketflow.payment.provider.schedule-enabled", () -> "false");
         registry.add("ticketflow.payment.jwt.jwks-uri",
                 () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort() + "/.well-known/jwks.json");
     }

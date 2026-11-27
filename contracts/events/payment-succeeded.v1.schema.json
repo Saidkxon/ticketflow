@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ticketflow.local/contracts/events/payment-succeeded.v1.schema.json",
+  "title": "PaymentSucceeded v1",
+  "description": "Payment tells that the provider took the money for one payment attempt. Routing key: payment.payment-succeeded. Sent once per payment, even when the provider reports the success more than once (ADR-0006, rule R4). It can arrive after the booking has expired or was cancelled (a late success); Booking decides what to do then (rule R6). It carries identifiers and the amount only: no card data, no personal data. Consumers ignore unknown fields (ADR-0009, part F).",
+  "type": "object",
+  "required": [
+    "eventId",
+    "eventType",
+    "eventVersion",
+    "occurredAt",
+    "producer",
+    "correlationId",
+    "aggregateId",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of this message, used by consumers to recognize duplicates"
+    },
+    "eventType": {
+      "const": "PaymentSucceeded"
+    },
+    "eventVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When Payment recorded the success"
+    },
+    "producer": {
+      "const": "payment-service"
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid",
+      "description": "Null today: the payment processor is not a request"
+    },
+    "aggregateId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The payment; the same as data.paymentId"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "paymentId",
+        "bookingId",
+        "attemptNumber",
+        "amountMinor",
+        "currency"
+      ],
+      "properties": {
+        "paymentId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The payment attempt"
+        },
+        "bookingId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The booking the payment is for"
+        },
+        "attemptNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99,
+          "description": "Which attempt for this booking; with bookingId it is the idempotency key of the attempt"
+        },
+        "amountMinor": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The amount in the smallest unit of the currency"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      }
+    }
+  }
+}

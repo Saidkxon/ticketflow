@@ -63,6 +63,11 @@ class PaymentAttemptTest extends AbstractPostgresIntegrationTest {
         return "{\"bookingId\":\"" + bookingId + "\",\"amountMinor\":" + amountMinor + ",\"currency\":\"" + currency + "\"}";
     }
 
+    private static String bodyWithCard(UUID bookingId, long amountMinor, String currency, String card) {
+        return "{\"bookingId\":\"" + bookingId + "\",\"amountMinor\":" + amountMinor + ",\"currency\":\"" + currency
+                + "\",\"testCard\":\"" + card + "\"}";
+    }
+
     private static MockHttpServletRequestBuilder create(String token, String key, String json) {
         MockHttpServletRequestBuilder request = post(PATH).contentType(MediaType.APPLICATION_JSON).content(json);
         if (token != null) {
@@ -150,6 +155,60 @@ class PaymentAttemptTest extends AbstractPostgresIntegrationTest {
 
         assertThat(paymentIdIn(second)).isNotEqualTo(paymentIdIn(first));
         assertThat(rowsOf(booking)).isEqualTo(2);
+    }
+
+    @Test
+    void onlyTheScenarioAndTheLastFourDigitsOfATestCardAreKept() throws Exception {
+        UUID booking = UUID.randomUUID();
+
+        String answer = mockMvc.perform(create(createToken(), booking + ":1",
+                        bodyWithCard(booking, 99_000, "UZS", "4242424242424242")))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.testCard").doesNotExist())
+                .andExpect(jsonPath("$.cardLast4").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(answer).doesNotContain("4242424242424242");
+        assertThat(jdbc.queryForObject("select scenario || '/' || card_last4 from payments where booking_id = ?",
+                String.class, booking)).isEqualTo("SUCCESS/4242");
+        // No column of the row holds the number.
+        assertThat(jdbc.queryForObject("select count(*) from payments where booking_id = ? and payments::text like ?",
+                Integer.class, booking, "%4242424242424242%")).isZero();
+    }
+
+    @Test
+    void theSameKeyWithAnotherCardIsRefusedAndAnUnknownNumberIsADeclineScenario() throws Exception {
+        UUID booking = UUID.randomUUID();
+        mockMvc.perform(create(createToken(), booking + ":1", bodyWithCard(booking, 99_000, "UZS", "4000000000000002")))
+                .andExpect(status().isAccepted());
+
+        mockMvc.perform(create(createToken(), booking + ":1", bodyWithCard(booking, 99_000, "UZS", "4242424242424242")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+        mockMvc.perform(create(createToken(), booking + ":1", body(booking, 99_000, "UZS")))
+                .andExpect(status().isUnprocessableEntity());
+        mockMvc.perform(create(createToken(), booking + ":1", bodyWithCard(booking, 99_000, "UZS", "4000000000000002")))
+                .andExpect(status().isAccepted());
+
+        UUID other = UUID.randomUUID();
+        mockMvc.perform(create(createToken(), other + ":1", bodyWithCard(other, 99_000, "UZS", "5555555555554444")))
+                .andExpect(status().isAccepted());
+        assertThat(jdbc.queryForObject("select scenario from payments where booking_id = ?", String.class, other))
+                .isEqualTo("DECLINED");
+    }
+
+    @Test
+    void aTestCardThatIsNotDigitsIsRefusedWithoutRepeatingIt() throws Exception {
+        UUID booking = UUID.randomUUID();
+
+        for (String card : new String[] {"4242-4242-4242-4242", "424242", "abcdabcdabcdabcd", "42424242424242424242"}) {
+            String answer = mockMvc.perform(create(createToken(), booking + ":1", bodyWithCard(booking, 99_000, "UZS", card)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(answer).doesNotContain(card);
+        }
+        assertThat(rowsOf(booking)).isZero();
     }
 
     // ---- bad requests

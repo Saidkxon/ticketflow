@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ticketflow.local/contracts/events/payment-failed.v1.schema.json",
+  "title": "PaymentFailed v1",
+  "description": "Payment tells that one payment attempt failed and no money was taken: the provider declined it, or confirmed that it holds no charge. A timeout alone is never reported as a failure (ADR-0006, rule R5). Routing key: payment.payment-failed. Sent once per payment. It carries identifiers, the amount and a reason code only: no card data, no personal data. Consumers ignore unknown fields (ADR-0009, part F).",
+  "type": "object",
+  "required": [
+    "eventId",
+    "eventType",
+    "eventVersion",
+    "occurredAt",
+    "producer",
+    "correlationId",
+    "aggregateId",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of this message, used by consumers to recognize duplicates"
+    },
+    "eventType": {
+      "const": "PaymentFailed"
+    },
+    "eventVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When Payment recorded the failure"
+    },
+    "producer": {
+      "const": "payment-service"
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid",
+      "description": "Null today: the payment processor is not a request"
+    },
+    "aggregateId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The payment; the same as data.paymentId"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "paymentId",
+        "bookingId",
+        "attemptNumber",
+        "amountMinor",
+        "currency",
+        "reason"
+      ],
+      "properties": {
+        "paymentId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The payment attempt"
+        },
+        "bookingId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The booking the payment is for"
+        },
+        "attemptNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99,
+          "description": "Which attempt for this booking; with bookingId it is the idempotency key of the attempt"
+        },
+        "amountMinor": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The amount in the smallest unit of the currency"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "reason": {
+          "enum": [
+            "card_declined",
+            "no_payment_method",
+            "provider_no_charge"
+          ],
+          "description": "Why it failed. A consumer must treat a code it does not know as an unspecified failure."
+        }
+      }
+    }
+  }
+}

@@ -40,7 +40,8 @@ class MigrationTest extends AbstractPostgresIntegrationTest {
                 String.class);
 
         assertThat(columns).containsExactly("payment_id", "booking_id", "attempt_number", "amount_minor",
-                "currency", "status", "created_at", "updated_at");
+                "currency", "status", "created_at", "updated_at", "scenario", "card_last4", "provider_reference",
+                "failure_reason", "check_count", "next_check_at");
     }
 
     @Test
@@ -67,5 +68,31 @@ class MigrationTest extends AbstractPostgresIntegrationTest {
                     java.util.UUID.randomUUID(), row[3], row[0], row[1], row[2]))
                     .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         }
+    }
+
+    @Test
+    void aFailedPaymentNeedsAReasonAndASucceededOneNeedsAReference() {
+        String insert = "insert into payments (payment_id, booking_id, attempt_number, amount_minor, currency, status, "
+                + "failure_reason, provider_reference) values (?, ?, 1, 1000, 'UZS', ?, ?, ?)";
+
+        for (Object[] row : new Object[][] {
+                {"FAILED", null, null}, {"PENDING", "card_declined", null}, {"SUCCEEDED", null, null},
+                {"FAILED", "Not A Code", null}}) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(insert, java.util.UUID.randomUUID(),
+                    java.util.UUID.randomUUID(), row[0], row[1], row[2]))
+                    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        }
+        jdbc.update(insert, java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "FAILED", "card_declined", null);
+        jdbc.update(insert, java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "SUCCEEDED", null, "sim_1");
+    }
+
+    @Test
+    void theDatabaseRefusesACardNumberWhereOnlyTheLastFourDigitsBelong() {
+        String insert = "insert into payments (payment_id, booking_id, attempt_number, amount_minor, currency, status, "
+                + "card_last4) values (?, ?, 1, 1000, 'UZS', 'PENDING', ?)";
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(insert, java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), "4242424242424242"))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 }

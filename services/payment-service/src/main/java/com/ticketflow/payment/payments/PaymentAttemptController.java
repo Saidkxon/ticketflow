@@ -38,6 +38,7 @@ class PaymentAttemptController {
     private static final Pattern KEY = Pattern.compile("([0-9a-fA-F-]{36}):([0-9]{1,2})");
     private static final long MAX_AMOUNT_MINOR = 1_000_000_000_000L;
     private static final Pattern CURRENCY = Pattern.compile("[A-Z]{3}");
+    private static final Pattern CARD = Pattern.compile("[0-9]{12,19}");
 
     private final PaymentAttemptService attempts;
 
@@ -56,7 +57,8 @@ class PaymentAttemptController {
         ServiceTokenFilter.requireScope(request, CREATE_SCOPE);
         Key key = parseKey(idempotencyKey);
         validate(body, key);
-        Payment payment = attempts.create(key.bookingId(), key.attemptNumber(), body.amountMinor(), body.currency());
+        Payment payment = attempts.create(key.bookingId(), key.attemptNumber(), body.amountMinor(), body.currency(),
+                body.testCard());
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .location(URI.create("/internal/v1/payment-attempts/" + payment.paymentId()))
                 .cacheControl(CacheControl.noStore())
@@ -105,6 +107,10 @@ class PaymentAttemptController {
         }
         if (body.currency() == null || !CURRENCY.matcher(body.currency()).matches()) {
             problems.add(new FieldProblem("currency", "must be a three-letter upper case currency code"));
+        }
+        if (body.testCard() != null && !CARD.matcher(body.testCard()).matches()) {
+            // The value is not repeated in the answer: it is a card number.
+            problems.add(new FieldProblem("testCard", "must be 12 to 19 digits"));
         }
         if (!problems.isEmpty()) {
             throw new InvalidRequestException(problems);

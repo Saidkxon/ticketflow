@@ -17,6 +17,8 @@ Every event is one JSON message, described by a JSON Schema file in this folder 
 |---|---|---|---|---|
 | LayoutPublished | Catalog | `catalog.layout-published` | [layout-published.v1.schema.json](layout-published.v1.schema.json) | `booking.catalog.layout-published` (Booking), with `.retry` and `.dlq` next to it |
 | BookingExpired | Booking | `booking.booking-expired` | [booking-expired.v1.schema.json](booking-expired.v1.schema.json) | none yet; Notification will own `notification.booking.booking-expired` (Phase 4c) |
+| PaymentSucceeded | Payment | `payment.payment-succeeded` | [payment-succeeded.v1.schema.json](payment-succeeded.v1.schema.json) | none yet; Booking will own `booking.payment.payment-succeeded` (Phase 4c, PR 21) |
+| PaymentFailed | Payment | `payment.payment-failed` | [payment-failed.v1.schema.json](payment-failed.v1.schema.json) | none yet; Booking will own `booking.payment.payment-failed` (Phase 4c, PR 21) |
 
 A consumer names its queue `<consumer>.<routing key>`, and its retry and dead-letter queues by adding `.retry` and `.dlq`.
 

@@ -80,6 +80,31 @@ else
   check "payment attempts: the same key with another amount is refused" 422 "$(printf '%s' "$changed" | tail -1)"
   attempt_read="$(payment_request "/internal/v1/payment-attempts/$attempt_id" -H "Authorization: Bearer $attempts_token")"
   check "payment attempts: the attempt can be read" 200 "$(printf '%s' "$attempt_read" | tail -1)"
+  # The simulated provider (PR 19): the test card decides how a payment ends. Payment's own processor asks the provider
+  # every second, so the answer is read back until it is no longer PENDING (at most 15 seconds).
+  pay_with_card() { # test card number: creates an attempt for a new booking and prints the payment as read back
+    card_booking="$(printf '%04x%04x-%04x-4%03x-a%03x-%04x%04x%04x' $RANDOM $RANDOM $RANDOM $((RANDOM % 4096)) $((RANDOM % 4096)) $RANDOM $RANDOM $RANDOM)"
+    card_created="$(payment_request /internal/v1/payment-attempts -X POST -H "Authorization: Bearer $attempts_token" -H 'Content-Type: application/json' -H "Idempotency-Key: $card_booking:1" -d "{\"bookingId\":\"$card_booking\",\"amountMinor\":150000,\"currency\":\"UZS\",\"testCard\":\"$1\"}")"
+    card_id="$(printf '%s' "$card_created" | grep -o '"paymentId":"[^"]*"' | head -1 | cut -d'"' -f4)"
+    for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+      card_answer="$(payment_request "/internal/v1/payment-attempts/$card_id" -H "Authorization: Bearer $attempts_token")"
+      case "$card_answer" in *'"status":"PENDING"'*) sleep 1 ;; *) break ;; esac
+    done
+    printf '%s' "$card_answer"
+  }
+  contains "payment provider: the success card succeeds" '"status":"SUCCEEDED"' "$(pay_with_card 4242424242424242)"
+  declined_answer="$(pay_with_card 4000000000000002)"
+  contains "payment provider: the declined card fails" '"status":"FAILED"' "$declined_answer"
+  contains "payment provider: the failure says why" '"failureReason":"card_declined"' "$declined_answer"
+  contains "payment provider: a card that reports twice still succeeds" '"status":"SUCCEEDED"' "$(pay_with_card 4000000000000077)"
+  # The timeout card: the provider does not answer, and the payment must stay PENDING, not become a failure (R5).
+  timeout_booking="$(printf '%04x%04x-%04x-4%03x-a%03x-%04x%04x%04x' $RANDOM $RANDOM $RANDOM $((RANDOM % 4096)) $((RANDOM % 4096)) $RANDOM $RANDOM $RANDOM)"
+  timeout_created="$(payment_request /internal/v1/payment-attempts -X POST -H "Authorization: Bearer $attempts_token" -H 'Content-Type: application/json' -H "Idempotency-Key: $timeout_booking:1" -d "{\"bookingId\":\"$timeout_booking\",\"amountMinor\":150000,\"currency\":\"UZS\",\"testCard\":\"4000000000000259\"}")"
+  timeout_id="$(printf '%s' "$timeout_created" | grep -o '"paymentId":"[^"]*"' | head -1 | cut -d'"' -f4)"
+  sleep 4
+  timeout_answer="$(payment_request "/internal/v1/payment-attempts/$timeout_id" -H "Authorization: Bearer $attempts_token")"
+  contains "payment provider: a timeout leaves the payment PENDING" '"status":"PENDING"' "$timeout_answer"
+  case "$declined_answer$timeout_answer" in *4242424242424242*|*4000000000000002*|*4000000000000259*) echo "FAIL payment: an answer shows a card number"; failed=1 ;; *) echo "ok   payment: no answer shows a card number" ;; esac
   no_token="$(inside_payment)"
   check "payment: an internal path without a token is refused" 401 "$(printf '%s' "$no_token" | tail -1)"
   contains "payment: the refusal has the stable code" '"code":"UNAUTHENTICATED"' "$no_token"
