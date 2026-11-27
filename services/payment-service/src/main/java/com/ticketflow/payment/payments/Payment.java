@@ -11,7 +11,10 @@ import java.util.UUID;
  * @param cardLast4         the last four digits of the test card, or null; the number itself is never kept
  * @param providerReference the provider's reference once the payment succeeded, otherwise null
  * @param failureReason     why the payment failed, once it failed, otherwise null
- * @param checkCount        how many times the provider was asked since the attempt was created
+ * @param checkCount        how many times the provider was asked about the current step: the charge, then (after a
+ *                          refund was requested) the refund
+ * @param refundReason      why a refund was requested, once it was, otherwise null
+ * @param refundReference   the provider's reference of the refund once it is done, otherwise null
  */
 public record Payment(
         UUID paymentId,
@@ -26,5 +29,7 @@ public record Payment(
         String cardLast4,
         String providerReference,
         String failureReason,
-        int checkCount) {
+        int checkCount,
+        String refundReason,
+        String refundReference) {
 }

@@ -5,5 +5,9 @@ public enum PaymentStatus {
     /** Created, no final answer from the provider yet. A timeout stays here (R5). */
     PENDING,
     SUCCEEDED,
-    FAILED
+    FAILED,
+    /** A refund was requested (ADR-0006 R4, R7) and the provider has not confirmed it yet. */
+    REFUND_PENDING,
+    /** The money was given back in full. Final. */
+    REFUNDED
 }

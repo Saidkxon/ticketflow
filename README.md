@@ -35,7 +35,7 @@ ticketflow/
   .github/       CI workflows, PR template, CODEOWNERS
 ```
 
-`services/` holds the gateway, Catalog, Identity, Booking and Payment (attempts and a simulated provider) today; Notification arrives in Phase 4c.
+`services/` holds the gateway, Catalog, Identity, Booking and Payment (attempts, a simulated provider and refunds) today; Notification arrives in Phase 4c.
 
 ## First-time repository setup (instructor action)
 

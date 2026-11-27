@@ -41,7 +41,7 @@ class MigrationTest extends AbstractPostgresIntegrationTest {
 
         assertThat(columns).containsExactly("payment_id", "booking_id", "attempt_number", "amount_minor",
                 "currency", "status", "created_at", "updated_at", "scenario", "card_last4", "provider_reference",
-                "failure_reason", "check_count", "next_check_at");
+                "failure_reason", "check_count", "next_check_at", "refund_reason", "refund_reference");
     }
 
     @Test
@@ -63,7 +63,7 @@ class MigrationTest extends AbstractPostgresIntegrationTest {
 
         for (Object[] row : new Object[][] {
                 {0, "UZS", "PENDING", 1}, {-1, "UZS", "PENDING", 1}, {1000, "uzs", "PENDING", 1},
-                {1000, "UZS", "REFUNDED", 1}, {1000, "UZS", "PENDING", 0}}) {
+                {1000, "UZS", "CANCELLED", 1}, {1000, "UZS", "PENDING", 0}}) {
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(insert, java.util.UUID.randomUUID(),
                     java.util.UUID.randomUUID(), row[3], row[0], row[1], row[2]))
                     .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
@@ -94,5 +94,23 @@ class MigrationTest extends AbstractPostgresIntegrationTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(insert, java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), "4242424242424242"))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void aRefundNeedsItsReasonAndAFinishedRefundItsReference() {
+        String insert = "insert into payments (payment_id, booking_id, attempt_number, amount_minor, currency, status, "
+                + "provider_reference, refund_reason, refund_reference) values (?, ?, 1, 1000, 'UZS', ?, 'sim_1', ?, ?)";
+
+        for (Object[] row : new Object[][] {
+                {"REFUND_PENDING", null, null}, {"REFUNDED", "booking_expired", null}, {"SUCCEEDED", "booking_expired", null},
+                {"REFUNDED", "no_such_reason", "sim_2"}, {"REFUND_PENDING", "booking_expired", "sim_2"}}) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(insert, java.util.UUID.randomUUID(),
+                    java.util.UUID.randomUUID(), row[0], row[1], row[2]))
+                    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        }
+        jdbc.update(insert, java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "REFUND_PENDING",
+                "booking_cancelled", null);
+        jdbc.update(insert, java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "REFUNDED",
+                "seats_unavailable", "sim_2");
     }
 }

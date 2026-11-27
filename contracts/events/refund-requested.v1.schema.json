@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ticketflow.local/contracts/events/refund-requested.v1.schema.json",
+  "title": "RefundRequested v1",
+  "description": "Booking asks Payment to give the money of one payment back in full (ADR-0006, rules R4 and R7): the payment succeeded but the booking is expired or cancelled, or its seats are gone, or the customer cancelled a confirmed booking. Routing key: booking.refund-requested. Payment's queue: payment.booking.refund-requested. Asking twice is harmless: Payment refunds once per payment and a repeat changes nothing. There is no amount: the MVP refunds in full. It carries identifiers and a reason code only. Consumers ignore unknown fields (ADR-0009, part F).",
+  "type": "object",
+  "required": [
+    "eventId",
+    "eventType",
+    "eventVersion",
+    "occurredAt",
+    "producer",
+    "correlationId",
+    "aggregateId",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of this message, used by consumers to recognize duplicates"
+    },
+    "eventType": {
+      "const": "RefundRequested"
+    },
+    "eventVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When Booking decided that the money goes back"
+    },
+    "producer": {
+      "const": "booking-service"
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid",
+      "description": "The correlation ID of the request that caused the message, or null when no request did (a timer, a consumer)"
+    },
+    "aggregateId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The booking; the same as data.bookingId"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "paymentId",
+        "bookingId",
+        "reason"
+      ],
+      "properties": {
+        "paymentId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The payment to refund, from PaymentSucceeded"
+        },
+        "bookingId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The booking the payment was for; Payment checks that it is the payment's booking"
+        },
+        "reason": {
+          "enum": [
+            "booking_expired",
+            "seats_unavailable",
+            "booking_cancelled"
+          ],
+          "description": "Why the money goes back"
+        }
+      }
+    }
+  }
+}

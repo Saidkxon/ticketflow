@@ -195,8 +195,11 @@ components:
           type: string
         status:
           type: string
-          enum: [PENDING, SUCCEEDED, FAILED]
-          description: PENDING until the provider has answered, or confirmed that it did not charge. SUCCEEDED and FAILED are final.
+          enum: [PENDING, SUCCEEDED, FAILED, REFUND_PENDING, REFUNDED]
+          description: |
+            PENDING until the provider has answered, or confirmed that it did not charge. FAILED is final. SUCCEEDED
+            can become REFUND_PENDING when Booking asks for the money back (the event `RefundRequested`, not a call
+            of this API) and then REFUNDED, which is final. The refund is reported with `RefundSucceeded`.
         failureReason:
           type: [string, 'null']
           enum: [card_declined, no_payment_method, provider_no_charge, null]

@@ -5,6 +5,7 @@ import com.ticketflow.payment.provider.ChargeOutcome;
 import com.ticketflow.payment.provider.ChargeRequest;
 import com.ticketflow.payment.provider.ChargeState;
 import com.ticketflow.payment.provider.PaymentProvider;
+import com.ticketflow.payment.provider.RefundRequest;
 import com.ticketflow.payment.provider.ProviderProperties;
 import com.ticketflow.payment.provider.ProviderTimeoutException;
 import java.util.Optional;
@@ -51,7 +52,7 @@ public class PaymentProcessor {
     }
 
     /** What one run did. */
-    public record Result(int settled, int postponed) {
+    public record Result(int settled, int postponed, int refunded) {
     }
 
     /** Handles up to {@code batchSize} payments that are due. */
@@ -69,10 +70,22 @@ public class PaymentProcessor {
                 postponed++;
             }
         }
-        if (settled > 0 || postponed > 0) {
-            log.info("payment processor settled {} payments and postponed {}", settled, postponed);
+        int refunded = 0;
+        for (int i = 0; i < properties.batchSize(); i++) {
+            Boolean done = transaction.execute(status -> processNextRefund());
+            if (done == null) {
+                break; // no refund is due
+            }
+            if (done) {
+                refunded++;
+            } else {
+                postponed++;
+            }
         }
-        return new Result(settled, postponed);
+        if (settled > 0 || postponed > 0 || refunded > 0) {
+            log.info("payment processor settled {} payments, refunded {} and postponed {}", settled, refunded, postponed);
+        }
+        return new Result(settled, postponed, refunded);
     }
 
     /** @return null when nothing is due, true when the payment was settled, false when it stays pending */
@@ -98,6 +111,73 @@ public class PaymentProcessor {
         }
         settle(payment.paymentId(), outcome);
         return true;
+    }
+
+    /**
+     * Sends or checks one refund, like {@link #processNext()} does for a charge (R4, R5): the first time the refund is
+     * asked for; afterwards only looked up. A timeout and "still processing" leave it REFUND_PENDING, and a provider that
+     * confirms it holds no refund for the key is asked again (safe: the key makes the refund happen once).
+     *
+     * @return null when no refund is due, true when the payment was refunded, false when it stays REFUND_PENDING
+     */
+    private Boolean processNextRefund() {
+        Optional<Payment> claimed = payments.claimNextRefundDue();
+        if (claimed.isEmpty()) {
+            return null;
+        }
+        Payment payment = claimed.get();
+        String key = payment.bookingId() + ":" + payment.attemptNumber();
+        RefundRequest request = new RefundRequest(key, payment.amountMinor(), payment.currency(), payment.scenario());
+        ChargeOutcome outcome;
+        try {
+            outcome = payment.checkCount() == 0 ? provider.refund(request) : provider.lookupRefund(key);
+            if (outcome.state() == ChargeState.NOT_CHARGED) {
+                outcome = provider.refund(request);
+            }
+        } catch (ProviderTimeoutException e) {
+            log.info("provider did not answer about the refund of paymentId={}; it stays pending", payment.paymentId());
+            outcome = ChargeOutcome.processing();
+        }
+        if (outcome.state() == ChargeState.SUCCEEDED) {
+            settleRefund(payment.paymentId(), outcome);
+            return true;
+        }
+        if (outcome.state() == ChargeState.DECLINED) {
+            // The provider refuses to give the money back. Nothing here can fix that: a person has to look at it.
+            log.error("provider refused the refund of paymentId={} ({}); it stays pending", payment.paymentId(),
+                    outcome.reason());
+        }
+        payments.postpone(payment.paymentId(), properties.recheckInterval());
+        return false;
+    }
+
+    /**
+     * Applies the provider's answer that a refund is done. Like {@link #settle}: only the first report that finds the
+     * payment REFUND_PENDING changes it and writes {@code RefundSucceeded}; a repeated report changes nothing (R4).
+     *
+     * @return true when this call completed the refund
+     */
+    boolean settleRefund(UUID paymentId, ChargeOutcome outcome) {
+        Boolean changed = transaction.execute(status -> {
+            boolean first = false;
+            int reports = Math.max(1, outcome.deliveries());
+            for (int report = 0; report < reports; report++) {
+                Optional<Payment> refunded = payments.settleRefund(paymentId, outcome.reference());
+                if (refunded.isEmpty()) {
+                    log.info("payment {} was refunded already; a repeated answer changes nothing", paymentId);
+                    continue;
+                }
+                Payment payment = refunded.get();
+                UUID messageId = UUID.randomUUID();
+                outbox.insert(messageId, "Payment", payment.paymentId(), PaymentResultMessage.REFUNDED,
+                        PaymentResultMessage.refunded(messageId, payment));
+                log.info("payment {} is REFUNDED bookingId={} attempt={}", payment.paymentId(), payment.bookingId(),
+                        payment.attemptNumber());
+                first = true;
+            }
+            return first;
+        });
+        return Boolean.TRUE.equals(changed);
     }
 
     /**
