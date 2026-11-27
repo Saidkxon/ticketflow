@@ -14,7 +14,7 @@ class PaymentRepository {
 
     private static final String COLUMNS =
             "payment_id, booking_id, attempt_number, amount_minor, currency, status, created_at, updated_at, "
-                    + "scenario, card_last4, provider_reference, failure_reason, check_count";
+                    + "scenario, card_last4, provider_reference, failure_reason, check_count, refund_reason, refund_reference";
 
     private final JdbcClient jdbc;
 
@@ -60,12 +60,56 @@ class PaymentRepository {
                 .optional();
     }
 
-    /** The provider has not decided: count the check and look again after {@code wait}. The payment stays PENDING. */
+    /**
+     * Takes the next payment whose refund is due to be sent or checked, like {@link #claimNextDue()}. Must run inside a
+     * transaction.
+     */
+    Optional<Payment> claimNextRefundDue() {
+        return jdbc.sql("SELECT " + COLUMNS + """
+                         FROM payments WHERE status = 'REFUND_PENDING' AND next_check_at <= clock_timestamp()
+                        ORDER BY next_check_at, payment_id LIMIT 1 FOR UPDATE SKIP LOCKED""")
+                .query(PaymentRepository::map)
+                .optional();
+    }
+
+    /**
+     * Starts the refund of a payment that succeeded: SUCCEEDED becomes REFUND_PENDING, due at once. Only a SUCCEEDED
+     * payment of this booking changes, so a request that arrives twice refunds once (ADR-0006 test obligation 8).
+     *
+     * @return the payment as it is now, or empty when it is not a SUCCEEDED payment of that booking
+     */
+    Optional<Payment> requestRefund(UUID paymentId, UUID bookingId, String reason) {
+        return jdbc.sql("""
+                        UPDATE payments SET status = 'REFUND_PENDING', refund_reason = :reason, check_count = 0,
+                                            next_check_at = clock_timestamp(), updated_at = clock_timestamp()
+                        WHERE payment_id = :paymentId AND booking_id = :bookingId AND status = 'SUCCEEDED'
+                        RETURNING\s""" + COLUMNS)
+                .param("reason", reason)
+                .param("paymentId", paymentId)
+                .param("bookingId", bookingId)
+                .query(PaymentRepository::map)
+                .optional();
+    }
+
+    /** Records that the provider refunded, but only for a payment whose refund is pending. */
+    Optional<Payment> settleRefund(UUID paymentId, String refundReference) {
+        return jdbc.sql("""
+                        UPDATE payments SET status = 'REFUNDED', refund_reference = :reference,
+                                            updated_at = clock_timestamp()
+                        WHERE payment_id = :paymentId AND status = 'REFUND_PENDING'
+                        RETURNING\s""" + COLUMNS)
+                .param("reference", refundReference)
+                .param("paymentId", paymentId)
+                .query(PaymentRepository::map)
+                .optional();
+    }
+
+    /** The provider has not decided: count the check and look again after {@code wait}. The payment stays as it is. */
     void postpone(UUID paymentId, Duration wait) {
         jdbc.sql("""
                         UPDATE payments SET check_count = check_count + 1,
                                             next_check_at = clock_timestamp() + make_interval(secs => :seconds)
-                        WHERE payment_id = :paymentId AND status = 'PENDING'""")
+                        WHERE payment_id = :paymentId AND status IN ('PENDING', 'REFUND_PENDING')""")
                 .param("seconds", wait.toMillis() / 1000.0)
                 .param("paymentId", paymentId)
                 .update();
@@ -122,6 +166,8 @@ class PaymentRepository {
                 rs.getString("card_last4"),
                 rs.getString("provider_reference"),
                 rs.getString("failure_reason"),
-                rs.getInt("check_count"));
+                rs.getInt("check_count"),
+                rs.getString("refund_reason"),
+                rs.getString("refund_reference"));
     }
 }

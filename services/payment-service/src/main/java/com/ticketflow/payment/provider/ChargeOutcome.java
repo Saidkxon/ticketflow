@@ -13,6 +13,8 @@ public record ChargeOutcome(ChargeState state, String reference, String reason, 
 
     public static final String CARD_DECLINED = "card_declined";
     public static final String NO_PAYMENT_METHOD = "no_payment_method";
+    /** The provider refused a refund because it holds no finished, successful charge for the key. */
+    public static final String NO_CHARGE_TO_REFUND = "no_charge_to_refund";
     /** The provider confirmed by a lookup that it never charged: the only way a timeout becomes a failure (R5). */
     public static final String PROVIDER_NO_CHARGE = "provider_no_charge";
 

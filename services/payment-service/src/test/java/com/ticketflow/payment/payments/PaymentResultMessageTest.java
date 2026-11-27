@@ -18,7 +18,7 @@ class PaymentResultMessageTest {
     private static Payment payment(PaymentStatus status, String reason) {
         return new Payment(PAYMENT, BOOKING, 2, 150_000, "UZS", status,
                 Instant.parse("2026-11-01T10:00:00Z"), Instant.parse("2026-11-01T10:00:07.912Z"),
-                TestCardScenario.SUCCESS, "4242", status == PaymentStatus.SUCCEEDED ? "sim_1" : null, reason, 1);
+                TestCardScenario.SUCCESS, "4242", status == PaymentStatus.SUCCEEDED ? "sim_1" : null, reason, 1, null, null);
     }
 
     @Test
@@ -39,6 +39,21 @@ class PaymentResultMessageTest {
 
         assertThat(json).contains("\"eventType\":\"PaymentFailed\"")
                 .endsWith("\"currency\":\"UZS\",\"reason\":\"card_declined\"}}");
+    }
+
+    @Test
+    void aRefundedPaymentCarriesTheReasonBookingGave() {
+        Payment refunded = new Payment(PAYMENT, BOOKING, 2, 150_000, "UZS", PaymentStatus.REFUNDED,
+                Instant.parse("2026-11-01T10:00:00Z"), Instant.parse("2026-11-01T10:05:00Z"),
+                TestCardScenario.SUCCESS, "4242", "sim_1", null, 1, "booking_cancelled", "sim_2");
+
+        String json = PaymentResultMessage.refunded(MESSAGE, refunded);
+
+        assertThat(json).contains("\"eventType\":\"RefundSucceeded\"").contains("\"occurredAt\":\"2026-11-01T10:05:00Z\"")
+                .endsWith("\"currency\":\"UZS\",\"reason\":\"booking_cancelled\"}}");
+        assertThat(json).doesNotContain("sim_");
+        assertThatThrownBy(() -> PaymentResultMessage.refunded(MESSAGE, payment(PaymentStatus.SUCCEEDED, null)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

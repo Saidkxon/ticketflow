@@ -218,6 +218,16 @@ class PaymentProcessorTest extends AbstractPostgresIntegrationTest {
             calls.add("lookup " + idempotencyKey);
             return lookupAnswer;
         }
+
+        @Override
+        public ChargeOutcome refund(com.ticketflow.payment.provider.RefundRequest request) {
+            throw new UnsupportedOperationException("not scripted");
+        }
+
+        @Override
+        public ChargeOutcome lookupRefund(String idempotencyKey) {
+            throw new UnsupportedOperationException("not scripted");
+        }
     }
 
     private PaymentProcessor processorWith(PaymentProvider provider) {

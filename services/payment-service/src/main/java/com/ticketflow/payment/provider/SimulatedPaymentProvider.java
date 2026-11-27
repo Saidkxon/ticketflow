@@ -16,6 +16,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class SimulatedPaymentProvider implements PaymentProvider {
 
+    /** Refunds live in the same table as charges, under their own key, so the two never collide. */
+    private static final String REFUND_PREFIX = "refund:";
+
     private final JdbcClient jdbc;
     private final ProviderProperties properties;
 
@@ -29,7 +32,15 @@ public class SimulatedPaymentProvider implements PaymentProvider {
 
     @Override
     public ChargeOutcome charge(ChargeRequest request) {
-        double hiddenSeconds = request.scenario() == TestCardScenario.TIMEOUT_THEN_SUCCESS
+        return record(request.idempotencyKey(), request.scenario(), request.amountMinor(), request.currency());
+    }
+
+    /**
+     * Records the charge (or refund) under its key unless it exists, then answers from the record: a timeout while its
+     * result is still hidden, otherwise the result of the scenario.
+     */
+    private ChargeOutcome record(String key, TestCardScenario scenario, long amountMinor, String currency) {
+        double hiddenSeconds = scenario == TestCardScenario.TIMEOUT_THEN_SUCCESS
                 ? properties.lateResultDelay().toMillis() / 1000.0
                 : 0.0;
         jdbc.sql("""
@@ -37,14 +48,14 @@ public class SimulatedPaymentProvider implements PaymentProvider {
                         VALUES (:key, :scenario, :reference, :amount, :currency,
                                 clock_timestamp() + make_interval(secs => :hidden))
                         ON CONFLICT (idempotency_key) DO NOTHING""")
-                .param("key", request.idempotencyKey())
-                .param("scenario", request.scenario().name())
+                .param("key", key)
+                .param("scenario", scenario.name())
                 .param("reference", "sim_" + UUID.randomUUID())
-                .param("amount", request.amountMinor())
-                .param("currency", request.currency())
+                .param("amount", amountMinor)
+                .param("currency", currency)
                 .param("hidden", hiddenSeconds)
                 .update();
-        Row row = read(request.idempotencyKey());
+        Row row = read(key);
         if (row == null) {
             throw new IllegalStateException("A recorded charge vanished");
         }
@@ -52,6 +63,21 @@ public class SimulatedPaymentProvider implements PaymentProvider {
             throw new ProviderTimeoutException("the simulated provider did not answer in time");
         }
         return outcomeOf(row);
+    }
+
+    @Override
+    public ChargeOutcome refund(RefundRequest request) {
+        Row charge = read(request.idempotencyKey());
+        if (charge == null || !charge.visible() || outcomeOf(charge).state() != ChargeState.SUCCEEDED) {
+            return ChargeOutcome.declined(ChargeOutcome.NO_CHARGE_TO_REFUND);
+        }
+        return record(REFUND_PREFIX + request.idempotencyKey(), request.scenario(), request.amountMinor(),
+                request.currency());
+    }
+
+    @Override
+    public ChargeOutcome lookupRefund(String idempotencyKey) {
+        return lookup(REFUND_PREFIX + idempotencyKey);
     }
 
     @Override
