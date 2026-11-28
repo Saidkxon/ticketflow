@@ -105,6 +105,15 @@ else
   timeout_answer="$(payment_request "/internal/v1/payment-attempts/$timeout_id" -H "Authorization: Bearer $attempts_token")"
   contains "payment provider: a timeout leaves the payment PENDING" '"status":"PENDING"' "$timeout_answer"
   case "$declined_answer$timeout_answer" in *4242424242424242*|*4000000000000002*|*4000000000000259*) echo "FAIL payment: an answer shows a card number"; failed=1 ;; *) echo "ok   payment: no answer shows a card number" ;; esac
+  # PR 21: Payment's events travel through the broker to Booking, which records each event ID it has handled. The attempts
+  # above had success and decline results, so both kinds must show up (the relay publishes every second).
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    handled_events="$(docker compose -f "$payment_compose" exec -T postgres psql -U booking -d booking -t -A -c "select distinct event_type from processed_events" 2>&1)"
+    case "$handled_events" in *PaymentSucceeded*PaymentFailed*|*PaymentFailed*PaymentSucceeded*) break ;; esac
+    sleep 1
+  done
+  contains "booking: it handled a PaymentSucceeded event of Payment" "PaymentSucceeded" "$handled_events"
+  contains "booking: it handled a PaymentFailed event of Payment" "PaymentFailed" "$handled_events"
   no_token="$(inside_payment)"
   check "payment: an internal path without a token is refused" 401 "$(printf '%s' "$no_token" | tail -1)"
   contains "payment: the refusal has the stable code" '"code":"UNAUTHENTICATED"' "$no_token"

@@ -64,6 +64,10 @@ Booking builds the seats of a newly published event from a message. If Catalog i
 2. Open the exchange `ticketflow.events`, then Publish message. Routing key `catalog.layout-published`, paste the payload, and publish.
 3. Back in the dead-letter queue, click Purge Messages.
 
+### When a payment event is parked
+
+Booking receives the results of Payment (`PaymentSucceeded`, `PaymentFailed`, `RefundSucceeded`), and Payment receives the refund requests of Booking (`RefundRequested`). Each has its own queue. A message that cannot be used, or that failed eight times, is parked in the dead-letter queue next to it: `booking.payment.payment-succeeded.dlq`, `booking.payment.payment-failed.dlq`, `booking.payment.refund-succeeded.dlq` and `payment.booking.refund-requested.dlq`. A parked payment message is serious: a customer may have paid without a ticket, or a refund may be missing. The `failure` header says what went wrong. After the cause is fixed, put the message back like the layout message above: publish the payload to the exchange `ticketflow.events` with the routing key of the event (`payment.payment-succeeded`, `payment.payment-failed`, `payment.refund-succeeded` or `booking.refund-requested`), then purge the dead-letter queue. Putting a message back is safe: an event that was handled already is recognized by its ID and changes nothing.
+
 To see what Booking has built for an event: `select count(*) from event_seats where event_id = '<the event ID>'` in the `booking` database.
 
 ## Signing keys for access tokens
