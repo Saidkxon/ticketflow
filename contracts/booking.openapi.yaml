@@ -418,9 +418,10 @@ components:
           description: |
             HELD while the hold lasts. EXPIRED once the hold deadline has passed (shown as soon as the deadline is
             past, even before Booking has released the seats; a repeated request with the same Idempotency-Key
-            returns the booking as it is then). CANCELLED after the customer released the hold. Later pull requests
-            add the other statuses (ADR-0006).
-          enum: [HELD, EXPIRED, CANCELLED]
+            returns the booking as it is then). CANCELLED after the customer released the hold. PAYMENT_PENDING (the
+            customer started to pay) and CONFIRMED (the payment succeeded and the seats are sold) are part of the
+            model from now on (ADR-0006) but no request moves a booking there yet: that comes in the next pull requests.
+          enum: [HELD, PAYMENT_PENDING, CONFIRMED, EXPIRED, CANCELLED]
         currency:
           type: string
           description: Three-letter code of the event's currency

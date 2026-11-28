@@ -40,8 +40,21 @@ class RefundRequestedListenerTest extends AbstractPostgresIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    /**
+     * The queues are declared when the consumer connects, which happens a moment after the context starts. A message
+     * published before that has no queue to go to and is dropped (the template is "mandatory"), so each test waits.
+     */
     @BeforeEach
-    void startEmpty() {
+    void startEmpty() throws InterruptedException {
+        boolean connected = false;
+        for (int i = 0; i < 300 && !connected; i++) {
+            org.springframework.amqp.core.QueueInformation info = admin.getQueueInfo(RefundsConfig.QUEUE);
+            connected = info != null && info.getConsumerCount() >= 1;
+            if (!connected) {
+                Thread.sleep(100);
+            }
+        }
+        assertThat(connected).as("the refund consumer is connected").isTrue();
         jdbc.update("DELETE FROM payments");
         jdbc.update("DELETE FROM outbox_events");
         jdbc.update("DELETE FROM sim_provider_charges");

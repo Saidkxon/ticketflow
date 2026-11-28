@@ -17,10 +17,10 @@ Every event is one JSON message, described by a JSON Schema file in this folder 
 |---|---|---|---|---|
 | LayoutPublished | Catalog | `catalog.layout-published` | [layout-published.v1.schema.json](layout-published.v1.schema.json) | `booking.catalog.layout-published` (Booking), with `.retry` and `.dlq` next to it |
 | BookingExpired | Booking | `booking.booking-expired` | [booking-expired.v1.schema.json](booking-expired.v1.schema.json) | none yet; Notification will own `notification.booking.booking-expired` (Phase 4c) |
-| PaymentSucceeded | Payment | `payment.payment-succeeded` | [payment-succeeded.v1.schema.json](payment-succeeded.v1.schema.json) | none yet; Booking will own `booking.payment.payment-succeeded` (Phase 4c, PR 21) |
-| PaymentFailed | Payment | `payment.payment-failed` | [payment-failed.v1.schema.json](payment-failed.v1.schema.json) | none yet; Booking will own `booking.payment.payment-failed` (Phase 4c, PR 21) |
+| PaymentSucceeded | Payment | `payment.payment-succeeded` | [payment-succeeded.v1.schema.json](payment-succeeded.v1.schema.json) | `booking.payment.payment-succeeded` (Booking), with `.retry` and `.dlq` next to it |
+| PaymentFailed | Payment | `payment.payment-failed` | [payment-failed.v1.schema.json](payment-failed.v1.schema.json) | `booking.payment.payment-failed` (Booking), with `.retry` and `.dlq` next to it |
 | RefundRequested | Booking | `booking.refund-requested` | [refund-requested.v1.schema.json](refund-requested.v1.schema.json) | `payment.booking.refund-requested` (Payment), with `.retry` and `.dlq` next to it. Booking starts to send it in Phase 4c (PR 24 and 25) |
-| RefundSucceeded | Payment | `payment.refund-succeeded` | [refund-succeeded.v1.schema.json](refund-succeeded.v1.schema.json) | none yet; Booking will own `booking.payment.refund-succeeded` (PR 21) and Notification `notification.payment.refund-succeeded` (PR 26) |
+| RefundSucceeded | Payment | `payment.refund-succeeded` | [refund-succeeded.v1.schema.json](refund-succeeded.v1.schema.json) | `booking.payment.refund-succeeded` (Booking), with `.retry` and `.dlq` next to it; Notification will own `notification.payment.refund-succeeded` (PR 26) |
 
 A consumer names its queue `<consumer>.<routing key>`, and its retry and dead-letter queues by adding `.retry` and `.dlq`.
 
